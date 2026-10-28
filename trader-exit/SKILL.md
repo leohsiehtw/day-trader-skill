@@ -1,51 +1,61 @@
 ---
 name: trader-exit
 description: >-
-  Exit Planner. Sets your stop and your target before you enter, so you know
-  when to get out. Reads the entry from trader-entry (or a price you give),
-  puts the stop at the opening-range midpoint by default (or the range low,
-  your price, a percent, or a multiple of the ATR), rounds it down to the
-  cent, and sets the target at 2R (or 1R, or your price). Refuses a stop at or
-  above the entry, a target at or below it, or a stop too tight to survive the
-  spread, and says why. Writes trader/plan.json for the Time Machine, the
-  Budget Manager and Price Alerts. Long side only. Use when the user says
-  "where's my stop", "set my stop and target", "plan the exit", "when do I get
-  out", "stop loss", "what's my R", "risk reward", or right after
-  /trader-entry triggers, before /trader-timemachine.
-argument-hint: "[--stop or-mid|or-low|price:X|pct:X|atr:K] [--target 2R|1R|price:X]"
+  Exit Planner for Taiwan stocks. Sets your stop and your target BEFORE you
+  enter, so you know when to get out. Reads the entry from trader-entry (or a
+  price you give), puts the stop at the opening-range midpoint by default (or
+  the range low, your price, a percent, or a multiple of the ATR), rounds it
+  down to the exchange tick, and sets the target at 2R (or 1R, or your
+  price). Refuses a stop at or above the entry, a target at or below it, a
+  stop under 2 ticks away, or a target above the 10 percent limit-up, and
+  says why. Shows the round-trip cost of fees and tax. Writes trader/plan.json
+  for the time machine, the budget manager and price alerts. Long side only.
+  Use when the user says "where's my stop", "set my stop and target", "plan
+  the exit", "when do I get out", "stop loss", "what's my R", "risk reward",
+  or right after /trader-entry triggers, before /trader-timemachine.
+argument-hint: "[--stop or-mid|or-low|price:X|pct:X|atr:K] [--target 2R|1R|price:X] [--prev-close X]"
 ---
 
 # trader-exit
 
 The Exit Planner decides how a trade ends before it starts. The stop is where
 the setup has failed. The target is where you take what you came for. Both
-are set BEFORE the entry, written down and handed on, so nobody has to decide
+are set before the entry, written down and handed on, so nobody has to decide
 anything in the middle of a fast move. A stop is a plan, not a guarantee: a
 gap or a fast market can fill past it. Day trading loses most people money,
 and a neat plan does not change that.
 
+This version is for Taiwan stocks (TWSE `2317.TW`, TPEx `6488.TWO`). Times
+are Taipei time, prices are TWD and sit on the exchange tick grid: 0.01 under
+10, 0.05 under 50, 0.1 under 100, 0.5 under 500, 1 under 1,000, 5 above. The
+TWSE has no bracket orders, so the stop is a conditional (OCO) order at your
+Taiwan broker, or something you watch.
+
 `${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+It needs `trader-risk/twmarket.py` in the folder next to it, so install all the
+trader-* folders together.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/exit.py" plan                          # trader/entry.json: midpoint stop, 2R target
-python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --stop or-mid --target 1R --write
+python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --stop or-mid --target 2R --write
 python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --stop atr:1.5           # needs the session's bars (Yahoo or --offline)
-python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --symbol TSLA --entry 364.18 --or-high 362.18 --or-low 354.47
+python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --symbol 2317.TW --entry 205 --or-high 204 --or-low 200.5 --prev-close 200
 python3 "${CLAUDE_SKILL_DIR}/exit.py" show                          # the current trader/plan.json
 ```
 
-Other flags: `--flat-by 15:55`, `--json`, `--now "2026-10-19 10:15"` (New
-York time), `--entry PRICE` with a waiting entry.json to plan ahead, `--setup
-level`, `--offline FILE` (a saved Yahoo chart JSON for an ATR stop).
+Other flags: `--flat-by 13:20`, `--json`, `--now "2026-10-19 09:30"` (Taipei
+time), `--entry PRICE` with a waiting entry.json to plan ahead, `--setup
+level`, `--prev-close X` (yesterday's close, for the price limits; entry.json
+carries it), `--offline FILE` (a saved Yahoo chart JSON for an ATR stop).
 
 ## What it reads and writes
 
 | file | what |
 | --- | --- |
-| `trader/entry.json` | the trigger from trader-entry: symbol, entry price, time, bar, opening range |
-| `trader/config.json` | `flat_by` (15:55) and `min_reward_risk` (1.0: a note here, trader-risk enforces it) |
+| `trader/entry.json` | the trigger from trader-entry: symbol, entry price, time, bar, opening range, previous close |
+| `trader/config.json` | `flat_by` (13:20), `min_reward_risk` (1.0: a note here, trader-risk enforces it) and the fee and tax rates used for the cost line |
 | Yahoo chart API | only for an `atr:K` stop: the session's bars up to the entry bar, free and unofficial |
-| `trader/plan.json` | with `--write`: entry, stop and its rule, target and its R, risk a share, reward:risk, flat by. trader-timemachine, trader-budget and trader-alerts read it |
+| `trader/plan.json` | with `--write`: entry, stop and its rule, target and its R, risk a share, reward:risk, flat by, previous close, limit-up and limit-down, round-trip cost percent. trader-timemachine, trader-budget and trader-alerts read it |
 
 ## Stops and targets
 
@@ -59,16 +69,25 @@ level`, `--offline FILE` (a saved Yahoo chart JSON for an ATR stop).
 
 A level setup has no opening range to lean on, so it needs a stop you name.
 
-- **Rounding.** The stop rounds AWAY from the entry to the cent (down, for a
-  long). Risk = entry minus stop. Target = entry + R x risk, rounded half up
-  to the cent. `2R` by default; `1R`, `1.5R` or `price:X` also work.
+- **Rounding.** The entry and the opening range snap to the nearest tick.
+  The stop rounds away from the entry to the tick (down, for a long). Risk =
+  entry minus stop. Target = entry + R x risk, snapped to the nearest tick
+  (halves go up). `2R` by default; `1R`, `1.5R` or `price:X` also work.
 - **Refused, with the reason.** A stop at or above the entry. A target at or
-  below it. A risk under 0.05% of the price: too tight to survive the
-  spread, normal wiggle would stop you out. An entry.json that has not
-  triggered (unless you give `--entry`). A short: v2 plans longs only.
-- **Flat by.** 15:55 by default (or `flat_by` in the config). Out by then,
-  win or lose, no overnight hold. On a 1:00 p.m. early close it moves up to
-  12:55. An entry at or after the flat-by time is refused.
+  below it. A risk under 2 ticks: too tight to survive the spread, normal
+  wiggle would stop you out. A target above limit-up, or a stop below
+  limit-down (10 percent either side of the previous close). An entry.json
+  that has not triggered (unless you give `--entry`). A short: v2 plans longs
+  only. A 00xx ETF code.
+- **No previous close.** Without `--prev-close` or one in entry.json the limit
+  check is skipped and the plan says so.
+- **Costs.** The plan prints the round trip as a percent of the position: the
+  broker fee both ways (0.1425 percent, times your discount, minimum NT$20)
+  plus the day-trade sell tax (0.15 percent by default). Reward:risk here is
+  before costs; trader-risk and trader-budget count the costs.
+- **Flat by.** 13:20 by default (or `flat_by` in the config). Out by then,
+  win or lose, no overnight hold. It must be before the 13:30 close; there is
+  no early close. An entry at or after the flat-by time is refused.
 
 ## Steps
 
@@ -76,49 +95,55 @@ A level setup has no opening range to lean on, so it needs a stop you name.
    plans ahead at the level you expect.
 2. Use the default stop for an opening-range breakout unless the user names
    another. A level setup needs one: ask.
-3. Run `exit.py plan --write`. Read back the entry, the stop and its rule,
-   the target and its rule, the risk a share, reward:risk and flat by.
-4. If it refuses, say the reason and the fix (a wider stop, a farther
-   target). Never loosen anything on your own.
-5. Say once that the stop is a plan, not a guarantee.
+3. Run `exit.py plan --write`. Read back the entry, the stop and its rule, the
+   target and its rule, the risk a share, reward:risk, the price limits and
+   flat by.
+4. If it refuses, say the reason and the fix (a wider stop, a lower target).
+   Never loosen anything on your own.
+5. Say once that the stop is a plan, not a guarantee, and that the TWSE has no
+   bracket orders.
 6. Hand off to `/trader-timemachine` to replay the plan, then `/trader-budget`
    to size it to the max loss per trade. Offer `/trader-alerts` for the stop,
    the target and the flat-by time. Claude can keep `entry.py watch` running
    in the background or on a `/loop` until a setup triggers, then come here.
 
-## Example: the reel
+## Example: a synthetic session
 
-TSLA, Monday 2026-10-19. The entry is 364.18 at 10:15 AM (the 10:10 bar,
-bar 8) and the opening range is 354.47 to 362.18. `exit.py plan --stop
-or-mid --target 1R --write`:
+2317.TW, Monday 2026-10-19. The numbers are made up for the test suite, not
+market data. Previous close 200.00. The entry is 205.00 at 9:30 AM (the 9:25
+bar, bar 5) and the opening range is 200.50 to 204.00. `exit.py plan --stop
+or-mid --target 2R --write`:
 
 ```
-Exit plan: TSLA long, Mon 2026-10-19, opening-range breakout on 5-minute bars
-  Entry         $364.18 at 10:15 AM (bar 8)
-  Stop          $358.32  opening-range midpoint: ($362.18 + $354.47) / 2 = $358.325, rounded down
-  Target        $370.04  1R (one times the risk)
-  Risk a share  $5.86 (1.61% of the entry)
-  Reward:risk   1.0
-  Flat by       15:55 ET, win or lose: no overnight hold
+Exit plan: 2317.TW long, Mon 2026-10-19, opening-range breakout on 5-minute bars
+  Entry         205.00 at 9:30 AM (bar 5)
+  Stop          202.00  opening-range midpoint: (204.00 + 200.50) / 2 = 202.25, rounded down to the tick
+  Target        211.00  2R (two times the risk)
+  Risk a share  3.00 (1.46% of the entry)
+  Reward:risk   2.0 (before costs)
+  Price limits  180.00 down to 220.00 up (previous close 200.00, +/-10%)
+  Costs         about 0.32% of the position round trip (broker fee both ways plus the day-trade sell tax)
+  Flat by       13:20 Taipei, win or lose: no overnight hold
 ```
 
-The default 2R target would be 364.18 + 2 x 5.86 = 375.90. trader-budget then
-sizes it: a $50 max loss per trade buys floor(50 / 5.86) = 8 shares.
+The 1R target would be 205.00 + 3.00 = 208.00. trader-budget then sizes it: a
+NT$5,000 max loss per trade, with fees and tax counted, buys 1,369 shares at
+most, which rounds down to 1 board lot of 1,000 shares.
 
 ## Rules
 
 - The stop and the target are set before the entry, never after.
 - Never move a stop further from the entry once the trade is on.
-- Plain numbers only: entry, stop, target, risk a share, reward:risk. It
-  never prints a P&L or a return.
+- Plain numbers only: entry, stop, target, risk a share, reward:risk. It never
+  prints a P&L or a return.
 - Nothing here promises winning trades or money. A 1R target is not a
   prediction that the price gets there.
 - Long side only. v2 plans longs only.
 
 ## What it never does
 
-It never places an order, never sizes a position, never widens a stop to
-make a plan pass, and never calls a stop a guarantee.
+It never places an order, never sizes a position, never widens a stop to make
+a plan pass, and never calls a stop a guarantee.
 
 ## Safety
 
