@@ -1,17 +1,18 @@
 ---
 name: trader-scanner
 description: >-
-  Chart Scanner. Scans thousands of charts for setups: opening-range
-  breakouts, flags, oversold bounces. Builds the list of US-listed common
-  stocks, ordinary shares and ADRs from Nasdaq Trader's symbol directories,
-  runs a pre-market scan of daily closes (20-day closing-high breakout, bull
-  flag, reclaimed the 20-day average, oversold, oversold bounce) and an
-  intraday opening-range breakout scan on 5-minute bars, then writes
-  trader/watchlist.json for trader-news and trader-entry. Free Yahoo data,
-  bar by bar. Use when the user says "scan the market", "find me setups",
-  "what is breaking out", "opening range breakouts", "scan for bull flags",
-  "oversold stocks", "pre-market scan", "build my watchlist", "what should I
-  look at today", or at the start of a trading day before /trader-news.
+  Chart Scanner for Taiwan stocks. Scans thousands of charts for setups:
+  opening-range breakouts, flags, oversold bounces. Builds the list of 4-digit
+  common stocks (TWSE 2317.TW and TPEx 6488.TWO) from the exchanges' own
+  daily-quote lists, runs a pre-market scan of daily closes (20-day
+  closing-high breakout, bull flag, reclaimed the 20-day average, oversold,
+  oversold bounce) and an intraday opening-range breakout scan on 5-minute
+  bars from the 9:00 open, then writes trader/watchlist.json for trader-news
+  and trader-entry. Free Yahoo data, bar by bar. Use when the user says "scan
+  the market", "find me setups", "what is breaking out", "opening range
+  breakouts", "scan for bull flags", "oversold stocks", "pre-market scan",
+  "build my watchlist", "what should I look at today", or at the start of a
+  trading day before /trader-news.
 argument-hint: "[universe | daily | orb] [--at HH:MM]"
 ---
 
@@ -22,25 +23,32 @@ free charts and lists the ones that match a rule. That is all it does. A scan
 is a list of charts that match a rule, not a list of stocks to buy, and a
 setup on a chart is not a prediction. Most people who day trade lose money;
 the scanner does not change that. It only saves you from flipping through
-5,000 charts by hand.
+2,000 charts by hand.
+
+This version is for the Taiwan cash market: TWSE listed stocks (`2317.TW`)
+and TPEx OTC stocks (`6488.TWO`), session 9:00 to 13:30 Taipei time, no
+daylight time, no early close. Prices are TWD. It needs
+`trader-risk/twmarket.py` in the folder next to it, so install all the
+trader-* folders together.
 
 `${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scan.py" universe                       # -> trader/universe.txt
 python3 "${CLAUDE_SKILL_DIR}/scan.py" daily                          # before the open -> trader/watchlist.json
-python3 "${CLAUDE_SKILL_DIR}/scan.py" daily --symbols TSLA,NVDA,AMD  # or --watchlist FILE, --limit 200
-python3 "${CLAUDE_SKILL_DIR}/scan.py" orb                            # after 9:50 AM ET -> trader/watchlist.json
-python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --at 10:15                 # cut the clock at 10:15 AM ET
+python3 "${CLAUDE_SKILL_DIR}/scan.py" daily --symbols 2317.TW,2330.TW,6488.TWO   # or --watchlist FILE, --limit 200
+python3 "${CLAUDE_SKILL_DIR}/scan.py" orb                            # after 9:20 Taipei -> trader/watchlist.json
+python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --at 09:45                 # cut the clock at 9:45 Taipei time
 python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --watchlist trader/watchlist.json --json
 ```
 
-Flags: `--min-price 5` and `--min-volume` (daily 1,000,000, orb 0),
+Flags: `--min-price 10` and `--min-volume` (daily 1,000,000 shares, orb 0),
 `--or-minutes 15`, `--max-confirm 200` (orb stage 2),
-`--now "2026-10-19 10:15"` (New York time) to pin the clock, `--offline PATH`
-to read saved Yahoo files, `--no-write`, `--show N`, `--json`. Exit code 0
-when the scan found something, 1 when it found nothing or could not run (the
-reason is one plain line).
+`--now "2026-10-19 09:45"` (Taipei time) to pin the clock, `--offline PATH`
+to read saved Yahoo files, `--no-write`, `--show N`, `--json`. Symbols always
+carry their market: a bare `2317` is refused. Exit code 0 when the scan found
+something, 1 when it found nothing or could not run (the reason is one plain
+line).
 
 ## What it reads and writes
 
@@ -48,44 +56,41 @@ reason is one plain line).
 | --- | --- |
 | `trader/universe.txt` | written by `universe`: one `SYMBOL\|Name` a line, read by `daily` and `orb` |
 | `trader/watchlist.json` | written by `daily` and `orb`: `mode`, `as_of`, `universe`, `scanned`, `failed`, `hits[]`. trader-news and trader-entry read `hits[].symbol` |
-| `trader/config.json` | read by `orb`: `no_entries_after` (default 15:30) |
+| `trader/config.json` | read by `orb`: `no_entries_after` (default 13:00) |
 
 ## The universe
 
-`universe` downloads `nasdaqlisted.txt` and `otherlisted.txt` from
-nasdaqtrader.com/dynamic/SymDir and keeps a row when, in this order:
+`universe` downloads two lists the exchanges publish themselves: the TWSE
+OpenAPI `exchangeReport/STOCK_DAY_ALL` (stocks that traded on the last
+session) and the TPEx OpenAPI `tpex_mainboard_daily_close_quotes`. It keeps a
+row when, in this order:
 
-1. It is not a test issue, not an ETF, not NextShares.
-2. It is a plain ticker: 1 to 5 letters, or 1 to 4 letters plus one class
-   letter after a dot (BRK.B). A `$` preferred (ABR$D) is out, and so is a
-   `.U`, `.W` or `.R` suffix (units, warrants, rights).
-3. Out, whatever else the name says: warrants; SPAC units and rights ("Units,
-   each consisting of", "Rights to receive"); notes, ETNs, debentures; a %
-   coupon; "Depositary Shares" that are not American or Global (those carry a
-   preferred).
-4. In: the name calls it common stock, common shares or units, ordinary
-   shares, shares of beneficial interest, ADS / ADR / American or Global
-   depositary shares, or partnership or trust units.
-5. Out: the name still says unit, right, bond, preferred or preference.
-6. In: everything else (plain names like "AMETEK, Inc.").
+1. The code is not `00xx`: those are ETFs and ETNs.
+2. The code is exactly four digits starting with 1 to 9. Preferred shares
+   (`1101B`), warrants, bonds and every 5- or 6-digit code are out.
+3. The name does not end in `-DR`: those are Taiwan Depositary Receipts.
+4. Everything else is in, TWSE rows as `.TW` and TPEx rows as `.TWO`.
 
-On the Oct 19 2026 files this keeps 5,943. The reel said 5,259: that count
-came from an ad hoc filter (names that say common or ordinary, no ADRs). All
-5,259 of those are in this list; the 684 extra are mostly ADRs, closed-end
-funds and partnership units. The Oct 20 files gave 5,942.
+On the lists fetched on 2026-10-29 (the TWSE list is dated 2026-10-27 and
+the TPEx list 2026-10-28) this keeps 1,982 of 14,513 rows: 12,167 are not
+4-digit stock codes, 360 are 00xx ETFs and ETNs and 4 are TDRs. The tool does
+not know which of the kept stocks are on a disposition, full-delivery or
+suspended list, or are not allowed to day trade: check that before you plan a
+trade.
 
 ## The daily scan (before the open)
 
-Yahoo's spark endpoint returns closes for 20 symbols a request, so 5,942
-symbols take 298 requests. On Oct 20 2026 that took 145 seconds with the
-polite pause (0.3 s). Liquidity comes from the spark meta: last price at
-least `--min-price` and last session's volume at least `--min-volume`. Run it
-before the open or after the close: during the session the volume is the
-day's so far, and today's daily bar is left out until 4:00 PM.
+Yahoo's spark endpoint returns closes for 20 symbols a request, so 1,982
+symbols take 100 requests with the polite pause of 0.3 seconds. Liquidity
+comes from the spark meta: last price at least `--min-price` (10 TWD) and
+last session's volume at least `--min-volume` (1,000,000 shares, that is
+1,000 board lots). Run it before the open or after the close: during the
+session the volume is the day's so far, and today's daily bar is left out
+until 13:30. Yahoo can serve today's daily bar with an empty close for a while
+after the market closes; an empty close is dropped, so the last bar can be a
+day old.
 
-The setups are computed from daily closes only (spark has no highs or lows),
-so they are close cousins of the reel's `refs/scan.py`, which used highs and
-lows:
+The setups are computed from daily closes only (spark has no highs or lows):
 
 | setup | the rule on closes |
 | --- | --- |
@@ -95,15 +100,16 @@ lows:
 | `oversold` | RSI 14 (Wilder) under 30 |
 | `oversold_bounce` | RSI 14 was under 30 yesterday and today closed up |
 
-A closing-high breakout fires more often than an intraday-high one (KO on
-Oct 16 broke its 20-day closing high, not its 20-day intraday high). Hits are
-listed most traded first (price times volume).
+Taiwan's 10 percent daily limit is not modelled: a stock that closed at
+limit-up is listed like any other breakout, and a stock stuck at limit-up
+often cannot be bought. Hits are listed most traded first (price times
+volume).
 
 ## The opening-range breakout scan (during the session)
 
-The opening range is the first `--or-minutes` (15) of the session: the 9:30,
-9:35 and 9:40 five-minute bars. A hit is the first completed 5-minute bar
-to CLOSE above the range high, at that bar's close time.
+The opening range is the first `--or-minutes` (15) of the session: the 9:00,
+9:05 and 9:10 five-minute bars. A hit is the first completed 5-minute bar to
+CLOSE above the range high, at that bar's close time.
 
 1. Stage 1, every symbol: spark closes of today's 5-minute bars, 20 a
    request. A chart goes on only if a completed bar after the range closed at
@@ -111,72 +117,74 @@ to CLOSE above the range high, at that bar's close time.
    (the range high is at least every range close), so no breakout is lost.
 2. Stage 2, each candidate: the v8 chart with real highs and lows, one
    request each. Range high = the highest high of the range bars, range low =
-   the lowest low. On a strong morning most charts are candidates, so stage 2
-   checks at most `--max-confirm` (200) of them, the most traded first (price
-   times volume so far), and prints PARTIAL with the count it skipped.
-   `--max-confirm 0` checks them all.
+   the lowest low. If many charts are candidates, stage 2 checks at most
+   `--max-confirm` (200) of them, the most traded first (price times volume
+   so far), and prints PARTIAL with the count it skipped. `--max-confirm 0`
+   checks them all.
 
-Timing, live on Tue Oct 20 2026 (a strong morning): 100 liquid names at
-10:01 AM took 35 seconds (5 spark requests, 70 v8 charts, 51 of 91 usable
-charts broke out). The whole universe at 10:03 AM took about 4 minutes (298
-spark requests, then 200 v8 charts): 2,448 usable charts, 1,782 candidates,
-the 200 most traded checked, 119 of those broke out. For a fast answer, scan
-the daily watchlist or a list of names you trade (`--watchlist`, `--symbols`).
+For a fast answer, scan the daily watchlist or a list of names you trade
+(`--watchlist`, `--symbols`). I have not timed a full-universe run on live
+data; the request counts above are what to expect.
 
-A chart is usable only when every 5-minute bar from 9:30 to the cutoff is
-there; a missing bar means a halt or a thin stock. Null closes are dropped,
-a bar off the 5-minute grid (the live tick, like 10:58:07) is dropped, and a
-bar counts only once it is complete (start + 5 minutes). Before 9:50 AM, on a
+A chart is usable only when every 5-minute bar from 9:00 to the cutoff is
+there; a missing bar means a halt or a thin stock, and many thinly traded
+Taiwan stocks skip bars, so they drop out of this scan. Null closes are
+dropped, a bar off the 5-minute grid (the live tick, like 10:02:30) is
+dropped, and a bar counts only once it is complete (start + 5 minutes). The
+13:30 closing-auction print Yahoo adds is not a bar. Before 9:20 AM, on a
 weekend or holiday, after the close, or after `no_entries_after` (an expired
-setup) it prints one plain line and writes nothing. The 1:00 PM early closes
-are in the calendar.
+setup) it prints one plain line and writes nothing. The holiday list inside
+the tool covers 2026: for another year check the TWSE holiday schedule.
 
 ## Data and limits
 
-- Yahoo's chart and spark endpoints are free, unofficial and can lag. Bars are
-  5-minute bars, bar by bar, never tick by tick. query2 first, query1 on a 429
-  or 5xx, one retry after a 5-second wait on a 429.
-- Partial results are said as partial: "Fetched 4,980 of 5,259 charts (279
+- Yahoo's chart and spark endpoints are free, unofficial and can lag, and
+  Taiwan quotes may be delayed. Bars are 5-minute bars, bar by bar, never
+  tick by tick. query2 first, query1 on a 429 or 5xx, one retry after a
+  5-second wait on a 429.
+- Partial results are said as partial: "Fetched 1,900 of 1,982 charts (82
   failed or had no data)". Never round a partial scan up to "the whole market".
-- NYSE holidays and early closes for 2026 and 2027 (nyse.com, read 2026-10-13).
+- The exchange lists are daily files from the TWSE and TPEx OpenAPI; the
+  field names this tool reads are `Code` / `Name` (TWSE) and
+  `SecuritiesCompanyCode` / `CompanyName` (TPEx).
 
 ## Steps
 
 1. Once a week or so: `scan.py universe`.
 2. Before the open: `scan.py daily`. Tell the user the counts (fetched,
    liquid, scanned, hits) and the top few by setup.
-3. After 9:50 AM ET (10:15 is the classic): `scan.py orb`. Tell the user how
-   many usable charts broke their range and when, and that a later hit is
-   closer to the price now.
-4. The user picks one chart. Hand it on: `/trader-news TICKER` (what is moving
-   it), then `/trader-entry TICKER` (the entry bar by bar). Never pick for them.
+3. After 9:20 AM Taipei (9:30 to 9:45 is the usual time): `scan.py orb`. Tell
+   the user how many usable charts broke their range and when, and that a
+   later hit is closer to the price now.
+4. The user picks one chart. Hand it on: `/trader-news SYMBOL` (what is moving
+   it), then `/trader-entry SYMBOL` (the entry bar by bar). Never pick for them.
 
-## Example: the reel
+## Example: a synthetic session
 
-Monday Oct 19 2026, scan at 10:15 AM over the reel's 234-ticker wall
-(`tests/fixtures/trader-scanner/wall5m-2026-10-19.json.gz`, real Yahoo charts):
+The test suite replays a made-up Monday, 2026-10-19, over 11 synthetic
+5-minute charts (`tests/fixtures/trader-scanner/wall5m-2026-10-19-synthetic.json.gz`,
+not market data). A scan at 9:45 AM with `--min-price 0`:
 
 ```
-python3 scan.py orb --offline wall5m-2026-10-19.json.gz --now "2026-10-19 10:15" --min-price 0
-Fetched 233 of 234 charts (1 failed or had no data); 231 usable; 95 candidates, 95 confirmed with real highs and lows.
-42 of 231 charts closed above their opening-range high by 10:15 AM:
-   9:50 AM  AMC         $2.97  range 2.90 to 2.96  +0.50% over
-  ...
-  10:15 AM  TSLA      $364.18  range 354.47 to 362.18  +0.55% over
+python3 scan.py orb --offline wall5m-2026-10-19-synthetic.json.gz --now "2026-10-19 09:45" --min-price 0
+Fetched 10 of 11 charts (1 failed or had no data); 8 usable; 7 candidates, 7 confirmed with real highs and lows.
+6 of 8 charts closed above their opening-range high by 9:45 AM:
+   9:20 AM  1101.TW        28.40  range 27.85 to 28.15  +0.89% over
+   9:20 AM  5871.TW         8.40  range 7.85 to 8.15  +3.07% over
+   9:25 AM  2330.TW     1,010.00  range 996.00 to 1,007.00  +0.30% over
+   9:30 AM  2317.TW       205.00  range 200.50 to 204.00  +0.49% over
+   9:35 AM  6488.TWO      858.00  range 846.50 to 853.50  +0.53% over
 ```
 
-The reel's wall had no price floor (AMC at $2.97 is one of the 42), hence
-`--min-price 0`; with the default $5 floor it is 41. TSLA's range is the 9:30
-to 9:40 bars, high 362.18, low 354.47; the 10:10 bar closed at 364.18, 0.55 %
-over the high, at 10:15 AM. The user picks TSLA and Claude hands it to
-`/trader-news TSLA`, then `/trader-entry TSLA`. In the reel the universe was
-5,259 US stocks; this tool's rule gives 5,943 on the same files.
+One chart has no data at all, one has no bars and one is missing its 9:15
+bar, so they are not scanned. 5871.TW trades under 10 TWD, so the default
+`--min-price 10` drops it. Real data is used in the tests too: a real spark
+answer for 2317.TW, 0050.TW and 6488.TWO, and a real 5-minute chart of
+2317.TW whose 13:25 bar came back empty.
 
-The pre-market scan that morning (closes through Fri Oct 16, the reel's daily
-charts) tags BLK, CI, XOM and HD a 20-day breakout, CCL a bull flag, F, JPM
-and GE a reclaim of the 20-day average, and BAC, MS, RIVN and PLUG oversold,
-as the reel did. On closes it also tags KO (breakout), RCL (flag) and PNC (an
-oversold bounce).
+The daily scan over the synthetic daily charts tags 1101.TW and 1102.TW as a
+20-day breakout, 2002.TW as a bull flag, 2207.TW as a reclaim of the 20-day
+average, 2301.TW and 2303.TW as oversold and 2308.TW as an oversold bounce.
 
 ## Rules
 
