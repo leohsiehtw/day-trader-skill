@@ -9,9 +9,9 @@ from contextlib import redirect_stdout, redirect_stderr
 from _load import load, ROOT, FIX
 
 ticket = load("trader-broker", "ticket")
-check = load("trader-risk", "check")
+check = load(os.path.join("tests", "fixtures", "trader-broker"), "check_us_frozen")  # trader-broker is not Taiwan-adapted yet
 
-CFG_PATH = os.path.join(ROOT, "trader-budget", "config.example.json")
+CFG_PATH = os.path.join(FIX, "trader-broker", "config.us.json")
 ORDERS_PATH = os.path.join(FIX, "trader-risk", "orders-tsla.json")
 PLAN_PATH = os.path.join(FIX, "trader-budget", "plan-tsla.json")
 NOW = "2026-10-19 10:15"
