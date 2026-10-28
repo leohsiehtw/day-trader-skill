@@ -1,0 +1,34 @@
+{
+  "created_by": "trader-budget",
+  "created_at": "2026-10-19T01:30:00Z",
+  "status": "proposed",
+  "paper": true,
+  "note": "Proposals only. Nothing is placed until trader-risk passes each order and you say yes to it in the chat.",
+  "source": "trader/plan.json (2317.TW orb 2026-10-19)",
+  "orders": [
+    {
+      "symbol": "2317.TW",
+      "side": "buy",
+      "qty": "1000",
+      "type": "market",
+      "time_in_force": "day",
+      "order_class": "bracket",
+      "take_profit_limit_price": "211.00",
+      "stop_loss_stop_price": "202.00",
+      "currency": "TWD",
+      "why": "opening-range breakout on 2317.TW: 1,000 shares, bound by your NT$5,000 max loss per trade (1,000 x 3.00 = NT$3,000 + NT$652 fees and tax = NT$3,652 at the stop)",
+      "plan": {
+        "entry": 205.0,
+        "stop": 202.0,
+        "target": 211.0,
+        "risk_per_share": 3.0,
+        "max_loss": 3652.0,
+        "costs_at_stop": 652,
+        "reward_risk_net": 1.46,
+        "setup": "orb",
+        "entry_time": "9:30 AM",
+        "flat_by": "13:20"
+      }
+    }
+  ]
+}

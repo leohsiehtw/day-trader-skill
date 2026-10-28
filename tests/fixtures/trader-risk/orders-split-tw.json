@@ -3,37 +3,37 @@
   "status": "proposed",
   "orders": [
     {
-      "symbol": "AAPL",
+      "symbol": "2330.TW",
       "side": "buy",
-      "notional": "1250",
+      "qty": "100",
       "type": "market",
       "time_in_force": "day"
     },
     {
-      "symbol": "AXP",
+      "symbol": "2317.TW",
       "side": "buy",
-      "notional": "1119",
+      "qty": "500",
       "type": "market",
       "time_in_force": "day"
     },
     {
-      "symbol": "GOOGL",
+      "symbol": "2412.TW",
       "side": "buy",
-      "notional": "823",
+      "qty": "800",
       "type": "market",
       "time_in_force": "day"
     },
     {
-      "symbol": "KO",
+      "symbol": "2882.TW",
       "side": "buy",
-      "notional": "708",
+      "qty": "1000",
       "type": "market",
       "time_in_force": "day"
     },
     {
-      "symbol": "BAC",
+      "symbol": "6488.TWO",
       "side": "buy",
-      "notional": "600",
+      "qty": "100",
       "type": "market",
       "time_in_force": "day"
     }

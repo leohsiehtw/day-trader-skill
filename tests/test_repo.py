@@ -121,8 +121,9 @@ class Repo(unittest.TestCase):
     def test_day_trading_limits_ship_in_the_example_config(self):
         with open(os.path.join(ROOT, "trader-budget", "config.example.json")) as fh:
             cfg = json.load(fh)
-        for k in ("max_loss_per_trade_usd", "max_daily_loss_usd", "max_trades_per_day",
-                  "min_reward_risk", "require_stop", "no_entries_after", "flat_by"):
+        for k in ("max_loss_per_trade_twd", "max_daily_loss_twd", "max_trades_per_day",
+                  "min_reward_risk", "require_stop", "no_entries_after", "flat_by",
+                  "fee_discount", "min_fee_twd", "day_trade_sell_tax_pct", "sell_tax_pct", "allow_odd_lots"):
             self.assertIn(k, cfg, k)
         self.assertIs(cfg["require_stop"], True)
         self.assertIs(cfg.get("allow_short", False), False)
