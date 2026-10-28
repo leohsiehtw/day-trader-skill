@@ -33,8 +33,10 @@ above the level yet); expired (no trigger by no_entries_after, default 13:00);
 no-data (the market is closed today or Yahoo sent no bars).
 
 Price limits. Taiwan stocks move at most 10 percent from the previous close.
-The previous close comes from Yahoo (an earlier session in the chart, or the
-chart's own previous close); without one the limit check is skipped and says so.
+The previous close is Yahoo's own for the latest session; for an older session
+in a multi-day chart it is the last 5-minute bar of the day before (it can differ
+a little from the official close, and the output says so). Without one the limit
+check is skipped and says so.
 A trigger at limit-up is flagged: a buy there often cannot fill.
 
 trader/config.json (optional): "no_entries_before" (09:15) and
@@ -291,7 +293,7 @@ def parse_chart(text, sym):
                      "l": float(c if lo is None else lo), "c": float(c), "v": int(at("volume", i) or 0)})
     return {"symbol": str(meta.get("symbol") or sym).upper(), "meta": meta, "bars": bars,
             "prev_close": meta.get("previousClose") or meta.get("chartPreviousClose"),
-            "chart_prev_close": meta.get("chartPreviousClose") or meta.get("previousClose"),
+            "previous_close": meta.get("previousClose"),
             "data_time": meta.get("regularMarketTime")}
 
 
@@ -359,16 +361,20 @@ def r2(x):
 
 
 def prev_close_for(chart, day):
-    """The close before `day`'s session: the last bar of an earlier session in the chart; else the
-    chart's own previous close when the chart starts on `day`; else None."""
+    """(close before `day`'s session, how). On the chart's latest session Yahoo's own previous close
+    (the official close) is used. For an older session in a multi-day chart it is the last 5-minute bar
+    of the session before, which can differ a little from the official close. (None, None) if unknown."""
+    days = sorted(set(ts_to_taipei(b["t"]).date() for b in chart["bars"]))
+    if days and days[-1] == day:
+        # a one-day chart: either Yahoo field is the previous close; a multi-day chart: only previousClose is
+        # (chartPreviousClose is the close before the chart's first day)
+        own = chart.get("prev_close") if len(days) == 1 else chart.get("previous_close")
+        if own:
+            return float(own), "yahoo"
     earlier = [b for b in chart["bars"] if ts_to_taipei(b["t"]).date() < day]
     if earlier:
-        return max(earlier, key=lambda b: b["t"])["c"]
-    days = [ts_to_taipei(b["t"]).date() for b in chart["bars"]]
-    if days and min(days) == day:
-        pc = chart.get("chart_prev_close") or chart.get("prev_close")
-        return float(pc) if pc else None
-    return None
+        return max(earlier, key=lambda b: b["t"])["c"], "last bar"
+    return None, None
 
 
 def evaluate(chart, now_utc, setup="orb", or_minutes=15, interval="5m", level=None,
@@ -400,10 +406,14 @@ def evaluate(chart, now_utc, setup="orb", or_minutes=15, interval="5m", level=No
         res.update(status="no-data", phase="closed", reason="the TWSE is closed today (%s)" % why,
                    next_open=next_open(day))
         return res
-    pc = prev_close_for(chart, day)
+    pc, pc_how = prev_close_for(chart, day)
     if pc and pc > 0:
         ld, lu = tw.limit_prices(pc)
         res.update(prev_close=r2(pc), limit_down=float(ld), limit_up=float(lu))
+        if pc_how == "last bar":
+            res["warnings"].append("the previous close %.2f is the last 5-minute bar of the session before, which "
+                                   "can differ a little from the official close, so the price limits are approximate"
+                                   % pc)
     else:
         res["warnings"].append("no previous close for %s: the +/-10%% limit check was skipped" % chart["symbol"])
     if setup == "level" and res["limit_up"] is not None and float(level) > res["limit_up"]:

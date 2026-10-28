@@ -81,7 +81,9 @@ simulated clock and replays the day bar by bar without waiting.
 - **Time limits.** No entries before 9:15 or after 13:00 (config). The
   session has no early close.
 - **Price limits.** A Taiwan stock moves at most 10 percent from its previous
-  close. The previous close comes from Yahoo. A trigger at the limit-up price
+  close. The previous close is Yahoo's own for the latest session (when
+  replaying an older session it is the last 5-minute bar of the day before,
+  which can differ a little, and it says so). A trigger at the limit-up price
   is flagged because a buy there often cannot fill. A level above limit-up
   cannot trigger. With no previous close the check is skipped and says so.
 - **What it says.** Waiting (and how far the last close is from the level),

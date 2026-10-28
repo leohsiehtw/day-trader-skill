@@ -237,14 +237,30 @@ class Rules(unittest.TestCase):
 
 
 class PriceLimits(unittest.TestCase):
-    def test_the_previous_close_from_an_earlier_session_beats_the_meta(self):
+    def test_yahoos_previous_close_wins_on_the_latest_session(self):
+        # a 5-day style chart: an earlier session's bar plus the day; previousClose is for the latest day
         c = chart()
         earlier = {"t": entry.ts_of(DT(2026, 10, 16, 5, 25)), "o": 198.0, "h": 199.0, "l": 197.5, "c": 198.5, "v": 1000}
         c["bars"] = [earlier] + c["bars"]
-        self.assertEqual(entry.prev_close_for(c, datetime.date(2026, 10, 19)), 198.5)
+        c["previous_close"] = 200.0
+        c["prev_close"] = 200.0
+        self.assertEqual(entry.prev_close_for(c, datetime.date(2026, 10, 19)), (200.0, "yahoo"))
+        # chartPreviousClose alone (the close before the first day of a multi-day chart) is not used
+        c["previous_close"] = None
+        c["prev_close"] = 150.0
+        self.assertEqual(entry.prev_close_for(c, datetime.date(2026, 10, 19)), (198.5, "last bar"))
+
+    def test_an_older_session_falls_back_to_the_last_bar_and_says_so(self):
+        # the chart also holds the next day, so 10-19 is not the latest session: use the last 10-16 bar
+        c = chart()
+        earlier = {"t": entry.ts_of(DT(2026, 10, 16, 5, 25)), "o": 198.0, "h": 199.0, "l": 197.5, "c": 198.5, "v": 1000}
+        later = {"t": entry.ts_of(DT(2026, 10, 20, 1, 0)), "o": 207.0, "h": 208.0, "l": 206.0, "c": 207.5, "v": 1000}
+        c["bars"] = [earlier] + c["bars"] + [later]
+        self.assertEqual(entry.prev_close_for(c, datetime.date(2026, 10, 19)), (198.5, "last bar"))
         r = entry.evaluate(c, tp("2026-10-19 09:30"))
-        self.assertEqual(r["prev_close"], 198.5)
-        self.assertEqual((r["limit_down"], r["limit_up"]), (179.0, 218.0))     # 178.65 up to the 0.5 tick, 218.35 down
+        self.assertEqual((r["prev_close"], r["limit_down"], r["limit_up"]), (198.5, 179.0, 218.0))   # 178.65 up, 218.35 down
+        self.assertTrue(any("can differ a little from the official close" in w for w in r["warnings"]))
+        self.assertEqual(entry.prev_close_for(c, datetime.date(2026, 10, 16)), (None, None))
 
     def test_no_previous_close_is_a_warning_not_a_guess(self):
         d = doc()
@@ -458,7 +474,7 @@ def live_provider(d, lag_until=None, calls=None):
             bars.append(b)
         if data_ts % 300:
             bars.append({"t": data_ts, "o": 205.5, "h": 205.5, "l": 205.5, "c": 205.5, "v": 0})
-        return {"symbol": "2317.TW", "meta": {}, "bars": bars, "prev_close": 200.0, "chart_prev_close": 200.0,
+        return {"symbol": "2317.TW", "meta": {}, "bars": bars, "prev_close": 200.0, "previous_close": 200.0,
                 "data_time": data_ts}
     return provider
 
