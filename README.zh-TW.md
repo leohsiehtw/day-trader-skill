@@ -99,6 +99,7 @@ install skill
 
 上面兩種都從這個 fork 安裝(marketplace 與 plugin 都叫 `day-trader-skill`)。原版(美股)仍在
 [Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill)。
+安裝指令已改指這個 fork,尚未實際安裝驗證。
 也可以從這個 fork 的 `tw-equities` 分支手動複製資料夾:
 
 ```bash

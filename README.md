@@ -124,6 +124,7 @@ Or as a plugin, in Claude Code:
 Both install from this fork (the marketplace and the plugin are both named
 `day-trader-skill`). The original US pack stays at
 [Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill).
+The install commands were switched to this fork but not tested by an actual install.
 Or copy the folders from this fork's `tw-equities` branch by hand:
 
 ```bash
