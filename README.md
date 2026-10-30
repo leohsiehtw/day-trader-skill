@@ -1,11 +1,18 @@
 # The Day Trader skill
 
+English | [繁體中文](README.zh-TW.md)
+
 11 Claude skills for day trading: scan thousands of charts, track breaking news, time every entry and exit, and replay every outcome before you risk a dollar.
+
+**This is a Taiwan (TWSE / TPEx) fork** of
+[Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill).
+The Taiwan edition lives on the `tw-equities` branch. It stays under the MIT
+license with the original author's copyright and credit (see `LICENSE`).
 
 Free, MIT, no signup, no API key. The tools are plain Python that read free
 public data: Yahoo Finance charts, the exchanges' own symbol lists (the TWSE
-and TPEx lists in the Taiwan edition below, Nasdaq Trader's elsewhere), SEC
-EDGAR and the House Clerk.
+and TPEx lists in the Taiwan edition, Nasdaq Trader's elsewhere), SEC EDGAR
+and the House Clerk.
 
 One scans thousands of charts for setups. Another tracks breaking news on
 every stock you watch. One watches a setup bar by bar and tells you the moment
@@ -17,59 +24,82 @@ past day the same setup fired, and tells you the honest odds.
 And no trade goes through until you say yes. Nothing in this pack can place
 an order on its own. Paper trading is the default.
 
-## 台股版 (Taiwan edition)
-
-這個 fork 的 `tw-equities` 分支把下單路徑上的五個 skill 改成台股(上市 `2317.TW`、
-上櫃 `6488.TWO` 的四碼普通股):`trader-scanner`、`trader-entry`、`trader-exit`、
-`trader-budget`、`trader-risk`。共用的台股規則放在 `trader-risk/twmarket.py`,
-所以這幾個資料夾要一起安裝。
-
-已經台股化的部分:
-
-- 時間是台北時間(固定 UTC+8,沒有日光節約),盤中 9:00 到 13:30,沒有提早收盤。
-  預設 09:15 之前、13:00 之後不進場,13:20 前出清。
-- 數量是整張(1,000 股的倍數)或單一筆零股(1 到 999 股),不能混合。依證交所當沖頁面,零股
-  目前不能當沖(主管機關只是在評估開放,據報 2026 年底才有結論):零股進場會變成留倉部位,之後賣出
-  適用一般 0.3% 證交稅,所以 `check.py` 與 `size.py` 會對零股進場給出強烈警告(`allow_odd_lots`
-  預設仍是 true)。
-- 價格要符合升降單位(0.01、0.05、0.1、0.5、1、5),並檢查前一日收盤價上下 10% 的漲跌幅。
-- 成本:手續費 0.1425% 乘以折扣(預設 0.6,最低 20 元,逐筆進位到整數元);一般賣出證交稅 0.3%。
-  當沖賣出稅看 `day_trade_mode`:`cash_daytrade`(現股當沖,預設)在交易日(`--now` 或今天的台北日期)
-  不晚於 `day_trade_tax_halved_until`(預設 `"2027-12-31"`)時是 0.15%,之後自動回到 0.3%;
-  `margin_daytrade`(資券當沖)一律 0.3%,不減半。最大虧損與風報比都把這些成本算進去。減半是暫行措施,
-  期限以財政部與證交所公告為準,期限變動時改 `day_trade_tax_halved_until`。
-- 只處理四碼普通股;00 開頭的 ETF、特別股、權證、DR 都會被拒絕或排除。
-- 範例與測試資料都是合成的(檔名帶 `synthetic`),只有證交所、櫃買清單與 Yahoo 回應的格式範例是真實資料的節錄。
-
-**尚未台股化**(仍是美股版:紐約時間、美元、NYSE 假日):`trader-news`、`trader-timemachine`、
-`trader-broker`、`trader-alerts`、`trader-analyst`、`trader-pelosi`。拿它們處理台股會把時區與幣別
-弄錯,`trader-broker` 也只會對接美國的 Alpaca,所以台股的委託請自己到券商下單
-(證交所沒有 bracket 單,停損與停利要在券商用條件單或 OCO 設定,或自己盯盤)。
-
-### 當沖資格(程式不檢查)
-
-券商與新聞常見的說法(未查證,請向你的券商或證交所確認):開戶滿 3 個月、最近一年成交 10 筆以上、
-簽署當沖風險預告書(當沖同意書);先賣後買另外要有信用交易(融資融券)或借券契約。程式不檢查以上任何一項,
-`size.py` 與 `exit.py` 的輸出會提醒一行。
-
-可當沖的股票以證交所每日公布的名單為準(TW Stock 連接器的 `get_daily_day_trading_targets`,
-或 twse.com.tw),程式不假設任何股票可以當沖。
-
-以下數字或規則目前標為「未查證」,請自行核對:
-
-- 最低手續費 NT$20(各券商不同)。
-- 融券賣出不得低於前一日收盤價(平盤以下不得放空)的限制,程式不檢查。
-- 零股能否當沖:依證交所當沖頁面目前「不能」,仍請向券商確認。
-- 漲跌幅 +/-10% 的價位進位方向(程式往內取到升降單位)與升降單位表,請對照證交所規定。
-
-限制:內建假日表只有 2026 年(來源是證交所 OpenAPI 的休市日清單),其他年份要自己核對;
-不檢查當沖資格、處置股、全額交割與信用交易限制;Yahoo 資料免費、非官方,可能延遲;
-這不是投資建議。
-
 > **Looking for the original Trader skill?** Copy an investor's 13F, the
 > stock screener, tax lots and rebalancing live in
 > [github.com/Jakeschincariol/trader-skill](https://github.com/Jakeschincariol/trader-skill).
 > This repo is its day-trading sequel: the Trader skill v2.
+
+## Taiwan edition
+
+Five skills on the order path are Taiwan-ready, for 4-digit common stocks
+listed on the TWSE (`2317.TW`) or the TPEx (`6488.TWO`): `trader-scanner`,
+`trader-entry`, `trader-exit`, `trader-risk` and `trader-budget`. The shared
+Taiwan rules live in `trader-risk/twmarket.py`, so install these folders
+together.
+
+**Not Taiwan-ready yet** (still the US version: New York time, US dollars,
+NYSE holidays): `trader-news`, `trader-timemachine`, `trader-broker`,
+`trader-alerts`, `trader-analyst`, `trader-pelosi`. Used on Taiwan stocks they
+would get the time zone and the currency wrong, and `trader-broker` only talks
+to the US broker Alpaca. Place Taiwan orders by hand at your Taiwan broker.
+The TWSE has no bracket orders: set the stop and the target as conditional or
+OCO orders at your broker, or watch the screen yourself.
+
+### Taiwan rules the code applies
+
+| rule | value |
+| --- | --- |
+| tick size | under 10: 0.01; 10 to under 50: 0.05; 50 to under 100: 0.1; 100 to under 500: 0.5; 500 to under 1,000: 1; 1,000 and up: 5 |
+| daily price limit | +/-10 % of the previous close |
+| session | 09:00 to 13:30 Taipei time (fixed UTC+8, no daylight time, no early close) |
+| entry window and flat time | no entries before 09:15 or after 13:00, flat by 13:20 (defaults in `config.example.json`) |
+| cash day-trade sell tax | 0.15 % on trades dated through 2027-12-31 (`day_trade_tax_halved_until`), then 0.3 % |
+| margin / short day trade | 0.3 %, set `day_trade_mode` to `margin_daytrade` (default `cash_daytrade`) |
+| ordinary sell tax | 0.3 % (`sell_tax_pct`) |
+| brokerage fee | 0.1425 % x `fee_discount` (default 0.6) per side, rounded up to a whole TWD, minimum `min_fee_twd` (20) |
+| board lot | 1,000 shares; an order is whole board lots or one odd lot of 1 to 999 shares, never both |
+| odd lots | cannot be day traded under current TWSE rules: an odd-lot entry gets a strong warning (it becomes an overnight position and the later sell pays 0.3 %) |
+| pattern day trader | Taiwan has no PDT rule, so there is no PDT check |
+| symbols | 4-digit common stocks only; 00xx ETFs, preferred shares, warrants and DRs are refused |
+
+The trade date for the tax is the tools' `--now` date, else today's Taipei
+date. The halved rate is a temporary measure: if the end date moves, change
+`day_trade_tax_halved_until`. Max loss and reward:risk include the fees and the
+tax. The built-in holiday list covers 2026 only (from the TWSE OpenAPI holiday
+list); for other years check the TWSE schedule yourself.
+
+### Day-trade eligibility (the program does not check it)
+
+As commonly stated by brokers and the news (confirm with your broker or the
+TWSE): the account has been open at least 3 months, has at least 10 trades in
+the past year, and has a signed day-trade consent form. Selling first and
+buying back the same day also needs a margin or securities-lending contract.
+The program checks none of this; `size.py` and `exit.py` print a one-line
+reminder.
+
+Which stocks may be day traded comes from the TWSE daily list
+(`get_daily_day_trading_targets` in the TW Stock connector, or twse.com.tw).
+The program does not assume any stock is on it. It also does not check
+disposition stocks, full-delivery stocks or margin restrictions.
+
+### Verified and unverified
+
+Verified:
+
+- the cash day-trade sell tax is 0.15 % through 2027-12-31 (news reports of the
+  Ministry of Finance extension);
+- odd lots cannot be day traded (TWSE day-trading page);
+- the +/-10 % daily limit is measured from the previous close.
+
+Unverified, check them yourself:
+
+- the NT$20 minimum fee (differs by broker);
+- the rule that a short sale may not be priced below the previous close (not
+  checked by the program);
+- whether odd-lot day trading will open later (the regulator is only
+  evaluating it);
+- the rounding direction of the +/-10 % limit prices (the program snaps inward
+  to the tick) and the tick table, against the official TWSE rules.
 
 ## Install
 
@@ -88,40 +118,45 @@ Or as a plugin, in Claude Code:
 /plugin install day-trader-skill@day-trader-skill
 ```
 
-Claude Code namespaces plugin skills, so installed as a plugin they show up as
-`/day-trader-skill:trader-scanner` and so on. Copy the folders instead if you want
-plain `/trader-scanner`:
+Those two install the original US pack from the upstream repo. For the Taiwan
+edition, copy the folders from this fork's `tw-equities` branch:
 
 ```bash
-git clone https://github.com/Jakeschincariol/day-trader-skill.git
+git clone -b tw-equities https://github.com/leohsiehtw/day-trader-skill.git
 cp -r day-trader-skill/trader-* ~/.claude/skills/
 ```
+
+Claude Code namespaces plugin skills, so installed as a plugin they show up as
+`/day-trader-skill:trader-scanner` and so on. Copied folders give you plain
+`/trader-scanner`.
 
 Project-local instead of global: copy the same folders into your repo's
 `.claude/skills/`. No Claude Code at all? Paste any single `SKILL.md` at the
 top of a chat and it runs as a mode. You lose the Python tools, but the method
 works.
 
-The tools need Python 3.8 or newer. Nothing to pip install. The SEC tools
-(news filings, the analyst) ask you to identify yourself: put your name and
-email in `trader/config.json` (`"sec_user_agent": "Your Name you@example.com"`)
-or in the `SEC_USER_AGENT` environment variable.
+The tools need Python 3.8 or newer. Nothing to pip install. Copy
+`trader-budget/config.example.json` to `trader/config.json` and set your own
+budget, limits and broker fee discount. The SEC tools (news filings, the
+analyst) ask you to identify yourself: put your name and email in
+`trader/config.json` (`"sec_user_agent": "Your Name you@example.com"`) or in
+the `SEC_USER_AGENT` environment variable.
 
 ## The eleven
 
-| command | job | what it does |
-| --- | --- | --- |
-| `/trader-scanner` | Chart Scanner | Scans thousands of charts for setups: opening-range breakouts, flags, oversold bounces. |
-| `/trader-news` | News Monitor | Tracks breaking news on every stock you watch and flags what moves it. |
-| `/trader-entry` | Entry Timer | Watches a setup bar by bar and tells you the moment to get in. |
-| `/trader-exit` | Exit Planner | Sets your stop and your target before you enter, so you know when to get out. |
-| `/trader-timemachine` | Time Machine | Replays every possible outcome of a trade before you risk a dollar: 10,000 simulated sessions plus every past time the setup fired. |
-| `/trader-risk` | Risk Manager | Checks every trade against your limits and stops anything over them. |
-| `/trader-budget` | Budget Manager | Sizes every position to your budget and your max loss per trade. |
-| `/trader-broker` | Order Executor | Sends approved orders to your broker, paper trading by default, never without your yes. |
-| `/trader-alerts` | Price Alerts | Rings when a price, a stop or the opening bell hits. |
-| `/trader-analyst` | Earnings Analyst | Reads earnings reports and sums up what changed. |
-| `/trader-pelosi` | Pelosi Tracker | Reads Congress's stock-trade disclosures the minute they are filed. |
+| command | job | what it does | Taiwan edition |
+| --- | --- | --- | --- |
+| `/trader-scanner` | Chart Scanner | Scans thousands of charts for setups: opening-range breakouts, flags, oversold bounces. | yes |
+| `/trader-news` | News Monitor | Tracks breaking news on every stock you watch and flags what moves it. | not yet (US) |
+| `/trader-entry` | Entry Timer | Watches a setup bar by bar and tells you the moment to get in. | yes |
+| `/trader-exit` | Exit Planner | Sets your stop and your target before you enter, so you know when to get out. | yes |
+| `/trader-timemachine` | Time Machine | Replays every possible outcome of a trade before you risk a dollar: 10,000 simulated sessions plus every past time the setup fired. | not yet (US) |
+| `/trader-risk` | Risk Manager | Checks every trade against your limits and stops anything over them. | yes |
+| `/trader-budget` | Budget Manager | Sizes every position to your budget and your max loss per trade. | yes |
+| `/trader-broker` | Order Executor | Sends approved orders to your broker, paper trading by default, never without your yes. | not yet (US, Alpaca) |
+| `/trader-alerts` | Price Alerts | Rings when a price, a stop or the opening bell hits. | not yet (US) |
+| `/trader-analyst` | Earnings Analyst | Reads earnings reports and sums up what changed. | not yet (US) |
+| `/trader-pelosi` | Pelosi Tracker | Reads Congress's stock-trade disclosures the minute they are filed. | not yet (US) |
 
 ## How to use it
 
@@ -134,10 +169,12 @@ alerts: stop, target, flat by the close                                       (w
 news / analyst / pelosi                                                        (on a schedule)
 ```
 
+For Taiwan stocks the flow is scanner -> entry -> exit -> budget -> risk, then
+you place the order by hand at your broker.
+
 An example, a made-up Taiwan session: 2317.TW, Monday October 19 2026. The
-numbers are synthetic, built for the test suite, not market data. Only the five
-Taiwan-ready skills appear; the rest of the pack is US-only for now (see the
-Taiwan edition above).
+example data is synthetic, built for the test suite, not market data. Only the
+five Taiwan-ready skills appear.
 
 1. **`/trader-scanner`** at 9:45 AM Taipei: of the 8 usable charts in the
    synthetic scan, 6 had closed above their 15-minute opening range. 2317.TW
@@ -208,6 +245,11 @@ arithmetic. It does not know your situation and it cannot see the future.
 Most people who day trade lose money. You can lose money. Decide for
 yourself, and talk to a licensed professional if you need advice.
 
+**Not validated with live trading.** The Taiwan edition has only been tested
+against synthetic and saved data, never with real orders. Tax rates, fee
+discounts, minimum fees and eligibility change and differ by broker: check
+them yourself before you trade.
+
 **No trade goes through until you say yes.** Only `/trader-broker` can lead to
 an order, and only after `/trader-risk` passes that exact order and you type
 yes for it in the chat. Set your brokerage tool to "Needs approval" in Claude
@@ -236,24 +278,26 @@ matters against your broker before you act on it.
 **Day-trading rules.** The Taiwan edition has no pattern-day-trader check:
 Taiwan has no PDT rule. Cash day trading (buy and sell the same stock in one
 day) needs an eligible account and an eligible stock at your broker (see
-"當沖資格" above), odd lots cannot be day traded under current TWSE rules, and
-the 0.15 % cash day-trade sell tax is a temporary rate (through 2027-12-31 by
-default; margin day trades pay 0.3 %). `/trader-risk` does not check
-eligibility, so confirm it yourself. The US-only skills still follow the US
-rules their text describes (FINRA's Regulatory Notice 26-10 removed the
-$25,000 pattern-day-trader minimum on June 4, 2026, with brokers allowed to
-phase it in until October 20, 2027).
+"Day-trade eligibility" above), odd lots cannot be day traded under current
+TWSE rules, and the 0.15 % cash day-trade sell tax is a temporary rate
+(through 2027-12-31 by default; margin day trades pay 0.3 %). `/trader-risk`
+does not check eligibility, so confirm it yourself. The US-only skills still
+follow the US rules their text describes (FINRA's Regulatory Notice 26-10
+removed the $25,000 pattern-day-trader minimum on June 4, 2026, with brokers
+allowed to phase it in until October 20, 2027).
 
 **Congress's trades are public, not inside information.** Members must disclose
 trades over $1,000 within 45 days (the STOCK Act). The Pelosi skill reads those
 public filings the minute they post.
 
-**Taxes.** Day-trading gains are short-term gains, and frequent trading makes
-wash sales likely. Nothing here is tax advice.
+**Taxes.** In the US, day-trading gains are short-term gains, and frequent
+trading makes wash sales likely. Nothing here is tax advice.
 
 ## Files
 
 ```
+README.md           this file (English)
+README.zh-TW.md     the same in Traditional Chinese
 trader-scanner/     SKILL.md, scan.py
 trader-news/        SKILL.md, news.py
 trader-entry/       SKILL.md, entry.py
@@ -268,4 +312,5 @@ trader-pelosi/      SKILL.md, ptr.py
 tests/              unittest suite + offline fixtures
 ```
 
-MIT. Made by [Jake Schincariol](https://opusjake.ai).
+MIT. Made by [Jake Schincariol](https://opusjake.ai). Taiwan edition is a fork
+of his work under the same license.

@@ -114,6 +114,9 @@ class Lots(unittest.TestCase):
 class Costs(unittest.TestCase):
     # Expected values were worked out on their own with exact fractions: fee = ceil(notional x 0.1425% x 0.6),
     # minimum 20; tax = ceil(sell notional x 0.15%).
+    # Pinned to the synthetic session date so the halved day-trade tax applies whatever today is.
+    D = {"trade_date": "2026-10-19"}
+
     def test_broker_fee(self):
         self.assertEqual(tw.broker_fee(205000), 176)
         self.assertEqual(tw.broker_fee(202000), 173)
@@ -123,32 +126,32 @@ class Costs(unittest.TestCase):
         self.assertEqual(tw.broker_fee(1000, {"min_fee_twd": 1}), 1)
 
     def test_sell_tax(self):
-        self.assertEqual(tw.sell_tax(202000), 303)
-        self.assertEqual(tw.sell_tax(211000), 317)     # 316.5 rounded up
+        self.assertEqual(tw.sell_tax(202000, self.D), 303)
+        self.assertEqual(tw.sell_tax(211000, self.D), 317)     # 316.5 rounded up
         self.assertEqual(tw.sell_tax(202000, rate_key="sell_tax_pct"), 606)
-        self.assertEqual(tw.sell_tax(0), 0)
+        self.assertEqual(tw.sell_tax(0, self.D), 0)
 
     def test_trade_costs(self):
-        self.assertEqual(tw.trade_costs(1000, 205, 202),
+        self.assertEqual(tw.trade_costs(1000, 205, 202, self.D),
                          {"buy_fee": 176, "sell_fee": 173, "tax": 303, "total": 652})
         # a short sale pays the tax on the OPENING sell
-        short = tw.trade_costs(1000, 205, 208, side="sell")
+        short = tw.trade_costs(1000, 205, 208, self.D, side="sell")
         self.assertEqual(short["tax"], 308)  # 205000 x 0.15% = 307.5 rounded up
 
     def test_loss_at_stop(self):
-        self.assertEqual(tw.loss_at_stop(1000, 205, 202), 3652)
-        self.assertEqual(tw.loss_at_stop(2000, 205, 202), 7303)
+        self.assertEqual(tw.loss_at_stop(1000, 205, 202, self.D), 3652)
+        self.assertEqual(tw.loss_at_stop(2000, 205, 202, self.D), 7303)
 
     def test_net_reward(self):
         # 1000 x 6.00 = 6000 less fees 176 + 181 and tax 317
-        self.assertEqual(tw.net_reward(1000, 205, 211), 5326)
+        self.assertEqual(tw.net_reward(1000, 205, 211, self.D), 5326)
 
     def test_max_qty_for_loss(self):
-        self.assertEqual(tw.max_qty_for_loss(5000, 205, 202), 1369)
-        self.assertLessEqual(tw.loss_at_stop(1369, 205, 202), 5000)
-        self.assertGreater(tw.loss_at_stop(1370, 205, 202), 5000)
-        self.assertEqual(tw.max_qty_for_loss(5000, 205, 205), 0)
-        self.assertEqual(tw.max_qty_for_loss(10, 205, 202), 0)
+        self.assertEqual(tw.max_qty_for_loss(5000, 205, 202, self.D), 1369)
+        self.assertLessEqual(tw.loss_at_stop(1369, 205, 202, self.D), 5000)
+        self.assertGreater(tw.loss_at_stop(1370, 205, 202, self.D), 5000)
+        self.assertEqual(tw.max_qty_for_loss(5000, 205, 205, self.D), 0)
+        self.assertEqual(tw.max_qty_for_loss(10, 205, 202, self.D), 0)
 
     def test_max_qty_for_cash(self):
         self.assertEqual(tw.max_qty_for_cash(450000, 205), 2193)
@@ -156,7 +159,7 @@ class Costs(unittest.TestCase):
 
     def test_round_trip_cost_pct(self):
         # 1000 x 205: fees 176 + 176, tax 308 (307.5 rounded up) = 660 on 205,000 = 0.3220 percent
-        self.assertAlmostEqual(tw.round_trip_cost_pct(205), 660 / 205000 * 100, places=6)
+        self.assertAlmostEqual(tw.round_trip_cost_pct(205, self.D), 660 / 205000 * 100, places=6)
 
     def test_cost_params_defaults(self):
         self.assertEqual(tw.cost_params({})["fee_discount"], 0.6)

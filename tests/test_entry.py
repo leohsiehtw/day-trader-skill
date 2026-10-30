@@ -431,7 +431,13 @@ class Network(unittest.TestCase):
 
     def test_still_busy_is_one_plain_error(self):
         self.answers(429, 429, 429, 429)
-        code, out, err = run(["check", "2317.TW", "--now", "2026-10-19 09:30"])
+        # pin the real clock too: the CLI refuses a --now date older than Yahoo's ~60 days of 5-minute bars
+        real_now = entry.utc_now
+        entry.utc_now = lambda: datetime.datetime(2026, 10, 19, 1, 30)
+        try:
+            code, out, err = run(["check", "2317.TW", "--now", "2026-10-19 09:30"])
+        finally:
+            entry.utc_now = real_now
         self.assertEqual(code, 1)
         self.assertIn("HTTP 429", err)
         self.assertNotIn("Traceback", err)
