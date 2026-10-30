@@ -28,11 +28,16 @@ an order on its own. Paper trading is the default.
 
 - 時間是台北時間(固定 UTC+8,沒有日光節約),盤中 9:00 到 13:30,沒有提早收盤。
   預設 09:15 之前、13:00 之後不進場,13:20 前出清。
-- 數量是整張(1,000 股的倍數)或單一筆零股(1 到 999 股),不能混合。
+- 數量是整張(1,000 股的倍數)或單一筆零股(1 到 999 股),不能混合。依證交所當沖頁面,零股
+  目前不能當沖(主管機關只是在評估開放,據報 2026 年底才有結論):零股進場會變成留倉部位,之後賣出
+  適用一般 0.3% 證交稅,所以 `check.py` 與 `size.py` 會對零股進場給出強烈警告(`allow_odd_lots`
+  預設仍是 true)。
 - 價格要符合升降單位(0.01、0.05、0.1、0.5、1、5),並檢查前一日收盤價上下 10% 的漲跌幅。
-- 成本:手續費 0.1425% 乘以折扣(預設 0.6,最低 20 元,逐筆進位到整數元);當沖賣出證交稅預設
-  0.15%,一般賣出 0.3%。最大虧損與風報比都把這些成本算進去。當沖 0.15% 是暫行稅率,
-  期限以財政部與證交所公告為準,過期請把 `day_trade_sell_tax_pct` 改成 0.3。
+- 成本:手續費 0.1425% 乘以折扣(預設 0.6,最低 20 元,逐筆進位到整數元);一般賣出證交稅 0.3%。
+  當沖賣出稅看 `day_trade_mode`:`cash_daytrade`(現股當沖,預設)在交易日(`--now` 或今天的台北日期)
+  不晚於 `day_trade_tax_halved_until`(預設 `"2027-12-31"`)時是 0.15%,之後自動回到 0.3%;
+  `margin_daytrade`(資券當沖)一律 0.3%,不減半。最大虧損與風報比都把這些成本算進去。減半是暫行措施,
+  期限以財政部與證交所公告為準,期限變動時改 `day_trade_tax_halved_until`。
 - 只處理四碼普通股;00 開頭的 ETF、特別股、權證、DR 都會被拒絕或排除。
 - 範例與測試資料都是合成的(檔名帶 `synthetic`),只有證交所、櫃買清單與 Yahoo 回應的格式範例是真實資料的節錄。
 
@@ -40,6 +45,22 @@ an order on its own. Paper trading is the default.
 `trader-broker`、`trader-alerts`、`trader-analyst`、`trader-pelosi`。拿它們處理台股會把時區與幣別
 弄錯,`trader-broker` 也只會對接美國的 Alpaca,所以台股的委託請自己到券商下單
 (證交所沒有 bracket 單,停損與停利要在券商用條件單或 OCO 設定,或自己盯盤)。
+
+### 當沖資格(程式不檢查)
+
+券商與新聞常見的說法(未查證,請向你的券商或證交所確認):開戶滿 3 個月、最近一年成交 10 筆以上、
+簽署當沖風險預告書(當沖同意書);先賣後買另外要有信用交易(融資融券)或借券契約。程式不檢查以上任何一項,
+`size.py` 與 `exit.py` 的輸出會提醒一行。
+
+可當沖的股票以證交所每日公布的名單為準(TW Stock 連接器的 `get_daily_day_trading_targets`,
+或 twse.com.tw),程式不假設任何股票可以當沖。
+
+以下數字或規則目前標為「未查證」,請自行核對:
+
+- 最低手續費 NT$20(各券商不同)。
+- 融券賣出不得低於前一日收盤價(平盤以下不得放空)的限制,程式不檢查。
+- 零股能否當沖:依證交所當沖頁面目前「不能」,仍請向券商確認。
+- 漲跌幅 +/-10% 的價位進位方向(程式往內取到升降單位)與升降單位表,請對照證交所規定。
 
 限制:內建假日表只有 2026 年(來源是證交所 OpenAPI 的休市日清單),其他年份要自己核對;
 不檢查當沖資格、處置股、全額交割與信用交易限制;Yahoo 資料免費、非官方,可能延遲;
@@ -214,9 +235,11 @@ matters against your broker before you act on it.
 
 **Day-trading rules.** The Taiwan edition has no pattern-day-trader check:
 Taiwan has no PDT rule. Cash day trading (buy and sell the same stock in one
-day) needs an eligible account and an eligible stock at your broker, and the
-day-trade sell tax of 0.15 % is a temporary rate. `/trader-risk` does not check
-any of that, so confirm it yourself. The US-only skills still follow the US
+day) needs an eligible account and an eligible stock at your broker (see
+"當沖資格" above), odd lots cannot be day traded under current TWSE rules, and
+the 0.15 % cash day-trade sell tax is a temporary rate (through 2027-12-31 by
+default; margin day trades pay 0.3 %). `/trader-risk` does not check
+eligibility, so confirm it yourself. The US-only skills still follow the US
 rules their text describes (FINRA's Regulatory Notice 26-10 removed the
 $25,000 pattern-day-trader minimum on June 4, 2026, with brokers allowed to
 phase it in until October 20, 2027).

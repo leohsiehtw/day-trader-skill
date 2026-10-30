@@ -5,6 +5,14 @@ Not a script: trader-entry, trader-exit, trader-budget, trader-scanner and trade
 (no daylight time, a fixed +8 hours), the TWSE holiday list, the price tick table, the 10 percent
 daily limits, board-lot rules and the broker fee and day-trade tax arithmetic. Money is done in
 Decimal and rounded UP to whole TWD, the way a broker rounds a fee.
+
+Day-trade sell tax. "day_trade_mode" picks the kind of day trade:
+  cash_daytrade    (default) a cash day trade: day_trade_sell_tax_pct (0.15) on the sell leg while the
+                   trade date is on or before day_trade_tax_halved_until ("2027-12-31"); after that date
+                   it reverts to sell_tax_pct (0.3) by itself
+  margin_daytrade  a margin / short-sale day trade: sell_tax_pct (0.3), never halved
+The trade date is the cost config's "trade_date" (the --now / --today date the tools pass in), else
+today in Taipei.
 """
 
 import datetime
@@ -16,8 +24,11 @@ OPEN = datetime.time(9, 0)
 CLOSE = datetime.time(13, 30)
 BOARD_LOT = 1000
 FEE_RATE = Decimal("0.001425")
+DAY_TRADE_MODES = ("cash_daytrade", "margin_daytrade")
+DAY_TRADE_TAX_HALVED_UNTIL = "2027-12-31"     # last trade date of the halved cash day-trade sell tax
 COST_DEFAULTS = {"fee_discount": 0.6, "min_fee_twd": 20, "day_trade_sell_tax_pct": 0.15,
-                 "sell_tax_pct": 0.3, "allow_odd_lots": True}
+                 "sell_tax_pct": 0.3, "allow_odd_lots": True, "day_trade_mode": "cash_daytrade",
+                 "day_trade_tax_halved_until": DAY_TRADE_TAX_HALVED_UNTIL}
 
 # Days the TWSE cash market is closed on a weekday, from the TWSE holiday schedule
 # (openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule), 2026 only. Weekends are not listed.
@@ -243,7 +254,67 @@ def cost_params(cfg):
     for k in COST_DEFAULTS:
         if cfg and cfg.get(k) is not None:
             out[k] = cfg[k]
+    out["trade_date"] = (cfg or {}).get("trade_date")
     return out
+
+
+def _as_date(value, what):
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    try:
+        return datetime.datetime.strptime(str(value).strip(), "%Y-%m-%d").date()
+    except ValueError:
+        raise TWError("%s wants a date like 2027-12-31, got %r" % (what, value))
+
+
+def cost_problem(cfg):
+    """None if the day-trade cost keys are valid; else what is wrong (for a config error)."""
+    c = cost_params(cfg)
+    if c["day_trade_mode"] not in DAY_TRADE_MODES:
+        return ("day_trade_mode must be \"cash_daytrade\" or \"margin_daytrade\", got %r" % (c["day_trade_mode"],))
+    try:
+        _as_date(c["day_trade_tax_halved_until"], "day_trade_tax_halved_until")
+        if c["trade_date"] is not None:
+            _as_date(c["trade_date"], "trade_date")
+    except TWError as e:
+        return str(e)
+    return None
+
+
+def day_trade_tax_pct(cfg=None, trade_date=None):
+    """The sell-tax rate (percent, Decimal) of a day trade on trade_date (default: the config's
+    trade_date, else today in Taipei). Raises TWError on a bad day_trade_mode or date."""
+    problem = cost_problem(cfg)
+    if problem:
+        raise TWError(problem)
+    c = cost_params(cfg)
+    if c["day_trade_mode"] == "margin_daytrade":
+        return D(c["sell_tax_pct"])
+    d = trade_date if trade_date is not None else c["trade_date"]
+    d = _as_date(d, "trade_date") if d is not None else to_taipei(utc_now()).date()
+    if d > _as_date(c["day_trade_tax_halved_until"], "day_trade_tax_halved_until"):
+        return D(c["sell_tax_pct"])
+    return D(c["day_trade_sell_tax_pct"])
+
+
+def day_trade_tax_words(cfg=None, trade_date=None):
+    """One line on the day-trade sell tax in use, e.g. "0.15% cash day-trade sell tax (halved through 2027-12-31)"."""
+    c = cost_params(cfg)
+    rate = day_trade_tax_pct(cfg, trade_date)
+    pct = format(rate.normalize(), "f")
+    if c["day_trade_mode"] == "margin_daytrade":
+        return "%s%% margin/short day-trade sell tax (not halved)" % pct
+    until = _as_date(c["day_trade_tax_halved_until"], "day_trade_tax_halved_until").isoformat()
+    if rate == D(c["day_trade_sell_tax_pct"]) and rate != D(c["sell_tax_pct"]):
+        return "%s%% cash day-trade sell tax (halved through %s)" % (pct, until)
+    return "%s%% cash day-trade sell tax (the halved rate ended %s)" % (pct, until)
+
+
+ELIGIBILITY_REMINDER = ("Not checked: whether your account may day trade (account age, trade count, signed "
+                        "day-trade consent; sell-first also needs a margin/lending contract) or whether this stock "
+                        "is on the TWSE daily day-trade list. Confirm with your broker.")
 
 
 def _ceil(x):
@@ -260,12 +331,17 @@ def broker_fee(notional, cfg=None):
     return max(int(c["min_fee_twd"]), fee)
 
 
-def sell_tax(notional, cfg=None, rate_key="day_trade_sell_tax_pct"):
+def sell_tax(notional, cfg=None, rate_key="day_trade_sell_tax_pct", trade_date=None):
+    """Sell tax, whole TWD rounded up. The default rate_key is the day-trade rate, which follows
+    day_trade_mode and the trade date (see day_trade_tax_pct); "sell_tax_pct" is the plain rate."""
     n = D(notional)
     if n <= 0:
         return 0
-    c = cost_params(cfg)
-    return _ceil(n * D(c[rate_key]) / Decimal(100))
+    if rate_key == "day_trade_sell_tax_pct":
+        rate = day_trade_tax_pct(cfg, trade_date)
+    else:
+        rate = D(cost_params(cfg)[rate_key])
+    return _ceil(n * rate / Decimal(100))
 
 
 def trade_costs(qty, open_px, close_px, cfg=None, side="buy"):
@@ -321,11 +397,13 @@ def max_qty_for_cash(cash, price, cfg=None):
     return _max_q(lambda q: q * p + broker_fee(q * p, cfg) <= D(cash), hi)
 
 
-def round_trip_cost_pct(price, cfg=None):
+def round_trip_cost_pct(price, cfg=None, trade_date=None):
     """Costs of buying and selling at the same price, in percent of one side's value."""
     p = D(price)
     if p <= 0:
         return 0.0
+    if trade_date is not None:
+        cfg = dict(cfg or {}, trade_date=trade_date)
     # a large notional makes the minimum fee irrelevant; use 100 board lots' worth per share count
     q = 1000
     c = trade_costs(q, p, p, cfg)

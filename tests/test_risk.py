@@ -115,6 +115,24 @@ class TheSession(unittest.TestCase):
         r = res["results"][0]
         self.assertEqual((r["verdict"], r["max_loss"], r["lot"]), ("PASS", 1827.0, "odd lot of 500 shares"))
         self.assertIn("odd lot of 500 shares", warnings(res))
+        self.assertIn("cannot be day traded", warnings(res))
+        self.assertIn("OVERNIGHT position", warnings(res))
+        self.assertIn("0.3 percent sell tax", warnings(res))
+
+    def test_margin_day_trade_and_the_tax_cutoff(self):
+        # 1,000 x 3.00 + fees 176 + 173 + tax 606 (202,000 x 0.3%) = 3,955
+        res = check.check([o2317()], cfg(day_trade_mode="margin_daytrade"), now=at(NOW), prev_closes=PREV)
+        self.assertEqual(res["results"][0]["max_loss"], 3955.0)
+        # a cash day trade after 2027-12-31 pays 0.3 percent too (Tue 2028-01-04)
+        res = check.check([o2317()], cfg(), now=at("2028-01-04 09:30"), prev_closes=PREV)
+        self.assertEqual(res["results"][0]["max_loss"], 3955.0)
+        res = check.check([o2317()], cfg(), now=at("2027-12-31 09:30"), prev_closes=PREV)
+        self.assertEqual(res["results"][0]["max_loss"], 3652.0)
+
+    def test_an_unknown_day_trade_mode_is_refused(self):
+        with self.assertRaises(check.RiskError) as cm:
+            check.check([o2317()], cfg(day_trade_mode="intraday"), now=at(NOW), prev_closes=PREV)
+        self.assertIn("day_trade_mode", str(cm.exception))
 
     def test_fingerprint_is_shared_with_the_broker(self):
         o = o2317()

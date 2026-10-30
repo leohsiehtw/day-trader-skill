@@ -40,7 +40,11 @@ flat_by (default 13:20, or "flat_by" in trader/config.json): out by then, win
 or lose. It must be before the 13:30 close; there is no early close.
 "min_reward_risk" in the config (default 1.0) only warns here; trader-risk
 enforces it, after costs. The plan shows the round-trip cost as a percent of the
-position (broker fee both ways plus the day-trade sell tax).
+position (broker fee both ways plus the day-trade sell tax). The tax follows
+"day_trade_mode" in the config: "cash_daytrade" (default) is 0.15 percent through
+day_trade_tax_halved_until ("2027-12-31", compared with the plan's date) and 0.3
+after; "margin_daytrade" is 0.3. Day-trade eligibility (your account, the stock on
+the TWSE daily day-trade list) is not checked; the plan says so.
 
 A stop is a plan, not a guarantee: a gap or a fast market can fill past it, and
 the TWSE has no bracket orders, so the stop is a conditional order at your broker
@@ -486,6 +490,9 @@ def read_config(path):
         for k in tuple(DEFAULTS) + COST_KEYS:
             if doc.get(k) is not None:
                 cfg[k] = doc[k]
+    problem = tw.cost_problem(cfg)
+    if problem:
+        raise PlanError(problem)
     return cfg
 
 
@@ -598,7 +605,8 @@ def build_plan(a, now_utc):
             "prev_close": float(prev_close) if prev_close is not None else None,
             "limit_up": float(c["limit_up"]) if c["limit_up"] is not None else None,
             "limit_down": float(c["limit_down"]) if c["limit_down"] is not None else None,
-            "currency": "TWD", "round_trip_cost_pct": round(tw.round_trip_cost_pct(c["entry"], cfg), 2),
+            "currency": "TWD", "round_trip_cost_pct": round(tw.round_trip_cost_pct(c["entry"], cfg, day), 2),
+            "day_trade_tax": tw.day_trade_tax_words(cfg, day),
             "stop_detail": c["stop_detail"], "created_at": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"), "note": NOTE}
     if atr is not None:
         plan["atr"] = round(atr, 4)
@@ -643,11 +651,13 @@ def describe(plan):
         out.append("  Price limits  %s down to %s up (previous close %s, +/-10%%)" % (
             px(plan["limit_down"]), px(plan["limit_up"]), px(plan["prev_close"])))
     if plan.get("round_trip_cost_pct") is not None:
-        out.append("  Costs         about %s%% of the position round trip (broker fee both ways plus the day-trade sell tax)"
-                   % num(D(plan["round_trip_cost_pct"]).quantize(CENT)))
+        out.append("  Costs         about %s%% of the position round trip (broker fee both ways plus the %s)"
+                   % (num(D(plan["round_trip_cost_pct"]).quantize(CENT)),
+                      plan.get("day_trade_tax") or "day-trade sell tax"))
     out.append("  Flat by       %s Taipei, win or lose: no overnight hold" % plan["flat_by"])
     out.append("Set before the entry. If price hits the stop, you are out; never move it further away.")
     out.append(NOTE)
+    out.append(tw.ELIGIBILITY_REMINDER)
     out.append("The TWSE has no bracket orders: enter the stop at your broker as a conditional (OCO) order, or watch it yourself.")
     return out
 

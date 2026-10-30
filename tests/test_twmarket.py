@@ -183,5 +183,43 @@ class Symbols(unittest.TestCase):
         self.assertIsNotNone(tw.stock_problem("TSLA"))
 
 
+
+class DayTradeTax(unittest.TestCase):
+    # Expected values worked out on their own with Decimal: tax = ceil(sell notional x rate / 100),
+    # fee = ceil(notional x 0.001425 x 0.6), minimum 20.
+    MARGIN = {"day_trade_mode": "margin_daytrade", "trade_date": "2026-10-19"}
+
+    def test_margin_day_trade_pays_the_full_rate(self):
+        self.assertEqual(tw.sell_tax(202000, self.MARGIN), 606)          # 202000 x 0.3% = 606
+        self.assertEqual(tw.day_trade_tax_pct(self.MARGIN), Decimal("0.3"))
+        # fees 176 + 173, tax 606
+        self.assertEqual(tw.trade_costs(1000, 205, 202, self.MARGIN),
+                         {"buy_fee": 176, "sell_fee": 173, "tax": 606, "total": 955})
+        self.assertEqual(tw.loss_at_stop(1000, 205, 202, self.MARGIN), 3955)
+        self.assertEqual(tw.max_qty_for_loss(5000, 205, 202, self.MARGIN), 1264)
+        self.assertIn("margin/short", tw.day_trade_tax_words(self.MARGIN))
+
+    def test_cash_rate_is_halved_through_the_cutoff_then_reverts(self):
+        self.assertEqual(tw.DAY_TRADE_TAX_HALVED_UNTIL, "2027-12-31")
+        self.assertEqual(tw.sell_tax(202000, {"trade_date": "2027-12-31"}), 303)
+        self.assertEqual(tw.sell_tax(202000, {"trade_date": "2028-01-03"}), 606)
+        self.assertEqual(tw.sell_tax(202000, trade_date=datetime.date(2028, 1, 3)), 606)
+        self.assertEqual(tw.loss_at_stop(1000, 205, 202, {"trade_date": "2028-01-03"}), 3955)
+        # the cutoff is a config key
+        self.assertEqual(tw.sell_tax(202000, {"trade_date": "2028-01-03",
+                                              "day_trade_tax_halved_until": "2028-12-31"}), 303)
+        self.assertIn("halved through 2027-12-31", tw.day_trade_tax_words({"trade_date": "2026-10-19"}))
+        self.assertIn("ended 2027-12-31", tw.day_trade_tax_words({"trade_date": "2028-01-03"}))
+        # 1000 x 205: fees 176 + 176, tax 615 = 967 on 205,000
+        self.assertAlmostEqual(tw.round_trip_cost_pct(205, None, "2028-01-03"), 967 / 205000 * 100, places=6)
+
+    def test_bad_mode_or_date_is_refused(self):
+        self.assertIn("day_trade_mode", tw.cost_problem({"day_trade_mode": "intraday"}))
+        self.assertIsNone(tw.cost_problem({}))
+        self.assertIsNotNone(tw.cost_problem({"day_trade_tax_halved_until": "end of 2027"}))
+        with self.assertRaises(tw.TWError):
+            tw.sell_tax(202000, {"day_trade_mode": "intraday"})
+
+
 if __name__ == "__main__":
     unittest.main()

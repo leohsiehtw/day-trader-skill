@@ -20,7 +20,8 @@ CONFIG_KEYS = {
     "budget", "cash_buffer_pct", "max_position_pct", "max_order_twd", "min_order_twd", "max_loss_per_trade_twd",
     "max_daily_loss_twd", "max_trades_per_day", "max_orders_per_day", "min_reward_risk", "require_stop",
     "no_entries_before", "no_entries_after", "flat_by", "allow_odd_lots", "fee_discount", "min_fee_twd",
-    "day_trade_sell_tax_pct", "sell_tax_pct", "day_trade_sell_tax_note", "broker", "paper", "blocked",
+    "day_trade_sell_tax_pct", "sell_tax_pct", "day_trade_sell_tax_note", "day_trade_mode",
+    "day_trade_tax_halved_until", "broker", "paper", "blocked",
     "allow_options", "allow_margin", "allow_short", "sec_user_agent",
 }
 
@@ -76,6 +77,7 @@ class ThePlan(unittest.TestCase):
         self.assertEqual((c["no_entries_before"], c["no_entries_after"], c["flat_by"]), ("09:15", "13:00", "13:20"))
         self.assertEqual((c["fee_discount"], c["min_fee_twd"], c["day_trade_sell_tax_pct"], c["sell_tax_pct"]),
                          (0.6, 20, 0.15, 0.3))
+        self.assertEqual((c["day_trade_mode"], c["day_trade_tax_halved_until"]), ("cash_daytrade", "2027-12-31"))
 
     def test_2317_is_one_board_lot_bound_by_the_max_loss(self):
         s = size.size_trade(plan(), cfg(), today=TODAY)
@@ -182,6 +184,33 @@ class PlanRules(unittest.TestCase):
         self.assertTrue(any("odd lot" in w for w in s["warnings"]))
         self.assertEqual(size.bracket_order(s)["qty"], "319")
         self.assertIn("odd lot of 319 shares", size.plan_report(s, size.bracket_order(s)))
+        odd = [w for w in s["warnings"] if "odd lot" in w][0]
+        self.assertIn("cannot be day traded", odd)
+        self.assertIn("OVERNIGHT position", odd)
+        self.assertIn("0.3 percent sell tax", odd)
+
+    def test_margin_mode_and_the_tax_cutoff(self):
+        # 1,000 x 3.00 + fees 176 + 173 + tax 606 (202,000 x 0.3%) = 3,955
+        s = size.size_trade(plan(), cfg(day_trade_mode="margin_daytrade"), today=TODAY)
+        self.assertEqual((s["qty"], s["max_loss"], s["costs"]["tax"]), (1000, 3955.0, 606))
+        self.assertEqual(s["limits"][0]["raw"], 1264)
+        s = size.size_trade(plan(date="2028-01-04"), cfg(), today="2028-01-04")
+        self.assertEqual((s["max_loss"], s["costs"]["tax"]), (3955.0, 606))
+        self.assertIn("ended 2027-12-31", size.plan_report(s, size.bracket_order(s)))
+        s = size.size_trade(plan(), cfg(), today=TODAY)
+        self.assertIn("0.15% cash day-trade sell tax (halved through 2027-12-31)",
+                      size.plan_report(s, size.bracket_order(s)))
+        with self.assertRaises(size.SizeError) as cm:
+            size.size_trade(plan(), cfg(day_trade_mode="daytrade"), today=TODAY)
+        self.assertIn("day_trade_mode", str(cm.exception))
+
+    def test_the_report_reminds_that_eligibility_is_unchecked(self):
+        s = size.size_trade(plan(), cfg(), today=TODAY)
+        text = size.plan_report(s, size.bracket_order(s))
+        self.assertEqual(text.count("Not checked: whether your account may day trade"), 1)
+        self.assertIn("TWSE daily day-trade list", text)
+        s = size.size_trade(plan(stop=190.0, target=220.0), cfg(allow_odd_lots=False, min_reward_risk=0), today=TODAY)
+        self.assertIn("Not checked: whether your account may day trade", size.plan_report(s, None))
 
     def test_odd_lots_off_needs_a_whole_board_lot(self):
         s = size.size_trade(plan(stop=190.0, target=220.0), cfg(allow_odd_lots=False, min_reward_risk=0), today=TODAY)

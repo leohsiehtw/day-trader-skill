@@ -72,9 +72,12 @@ If `trader/config.json` does not exist, copy `config.example.json` into
 - **allow_odd_lots** (true): whether a buy under 1,000 shares is allowed. An order is whole board lots
   or ONE odd lot, never both.
 - The cost rates: **fee_discount** (0.6 of the 0.1425% broker fee; it may be a monthly rebate at your broker,
-  and 1.0 is the worst case), **min_fee_twd** (20), **day_trade_sell_tax_pct** (0.15) and **sell_tax_pct**
-  (0.3). The 0.15 day-trade rate is a temporary cut that has been extended before: check the Ministry of
-  Finance or TWSE notice and set it to 0.3 if it has lapsed.
+  and 1.0 is the worst case), **min_fee_twd** (20, broker-specific, unverified), **day_trade_sell_tax_pct**
+  (0.15) and **sell_tax_pct** (0.3).
+- **day_trade_mode** ("cash_daytrade"): a cash day trade pays the 0.15 rate while the trade date is on or
+  before **day_trade_tax_halved_until** ("2027-12-31"), then 0.3 by itself; "margin_daytrade" (a margin or
+  short-sale day trade) always pays 0.3. Any other value is refused. Move the date if the Ministry of
+  Finance or TWSE notice moves the end of the halved rate.
 - **blocked**: symbols they never want to trade.
 - Keep **paper** true until they have watched it work on a paper account.
 
@@ -109,9 +112,12 @@ close), the plan is for another day, the symbol is blocked or is an ETF, or
 the plan is a short. With no previous close it still sizes, and says that the
 limit check was skipped. Say the reason to the user in one line.
 
-An odd-lot order warns: whether an odd-lot buy can be sold the same day is the
-broker's rule, and the sell tax may be 0.3 percent, which the numbers do not
-include.
+An odd-lot order warns strongly: odd lots cannot be day traded under current
+TWSE rules, so the buy becomes an overnight position, selling it later pays the
+normal 0.3 percent sell tax, and the costs shown (day-trade rate) are too low.
+
+The report ends with one reminder line: day-trade eligibility (your account,
+and the stock on the TWSE daily day-trade list) is not checked. See trader-risk.
 
 ## Step 3: show the user
 

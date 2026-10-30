@@ -95,6 +95,8 @@ DEFAULTS = {
     "min_fee_twd": 20,
     "day_trade_sell_tax_pct": 0.15,
     "sell_tax_pct": 0.3,
+    "day_trade_mode": "cash_daytrade",
+    "day_trade_tax_halved_until": tw.DAY_TRADE_TAX_HALVED_UNTIL,
     "broker": "alpaca",
     "paper": True,
     "blocked": [],
@@ -312,6 +314,10 @@ def size_trade(plan, cfg, budget=None, limit=None, price=None, cash=None, today=
     prev_close  yesterday's close if the plan has none (for the +/-10 percent price limits)"""
     c = dict(DEFAULTS)
     c.update(cfg or {})
+    c["trade_date"] = today or None
+    problem = tw.cost_problem(c)
+    if problem:
+        raise SizeError(problem)
     if not isinstance(plan, dict):
         raise SizeError("the plan is not a JSON object")
     sym = str(plan.get("symbol") or "").strip().upper()
@@ -436,8 +442,9 @@ def size_trade(plan, cfg, budget=None, limit=None, price=None, cash=None, today=
         costs, loss, reward_net, rr_net = {"buy_fee": 0, "sell_fee": 0, "tax": 0, "total": 0}, 0, 0, None
     cost = round(qty * ref, 2)
     if 0 < qty < tw.BOARD_LOT:
-        warnings.append("odd lot of %d shares: check with your broker that an odd-lot buy can be sold the same "
-                        "day; if the sell tax is the full 0.3 percent instead of 0.15, the costs here are too low"
+        warnings.append("odd lot of %d shares: odd lots cannot be day traded under current TWSE rules, so this "
+                        "entry becomes an OVERNIGHT position; selling it later pays the normal 0.3 percent sell "
+                        "tax, so the costs here (day-trade rate) are too low. Use whole board lots to day trade"
                         % qty)
     refusal = None
     if qty == 0:
@@ -474,6 +481,7 @@ def size_trade(plan, cfg, budget=None, limit=None, price=None, cash=None, today=
         "cost": cost, "costs": costs, "costs_at_stop": costs["total"], "max_loss": float(loss),
         "reward_net": reward_net, "currency": "TWD", "flat_by": plan.get("flat_by") or c.get("flat_by"),
         "order_type": "limit" if limit is not None else "market", "refusal": refusal,
+        "day_trade_tax": tw.day_trade_tax_words(c),
     }
 
 
@@ -534,6 +542,7 @@ def plan_report(s, order, notes=()):
     lines.append("")
     if order is None:
         lines.append("No order: " + s["refusal"])
+        lines.append(tw.ELIGIBILITY_REMINDER)
         lines.append("Education and tooling, not financial advice.")
         return "\n".join(lines)
     lines.append("Size: %s shares (%s) of %s = %s at %s."
@@ -543,6 +552,7 @@ def plan_report(s, order, notes=()):
                     money(s["costs_at_stop"]), money(s["max_loss"])))
     lines.append("If the target fills: %s net of costs. Net reward:risk %.2f (gross %.2f)."
                  % (money(s["reward_net"]), s["reward_risk_net"], s["reward_risk"]))
+    lines.append("Costs use the %s." % s["day_trade_tax"])
     lines.append("A stop is an order, not a promise: in a fast market it can fill below %s." % _price(s["stop"]))
     lines.append("")
     lines.append("Proposed order (place_stock_order arguments, nothing has been placed):")
@@ -554,6 +564,7 @@ def plan_report(s, order, notes=()):
     if s["flat_by"]:
         lines.append("Flat by %s Taipei: anything still open then gets closed (trader-alerts rings, "
                      "trader-broker flatten)." % s["flat_by"])
+    lines.append(tw.ELIGIBILITY_REMINDER)
     lines.append("")
     lines.append("Next: trader-risk checks it, then trader-broker asks you yes or no.")
     lines.append("Education and tooling, not financial advice.")

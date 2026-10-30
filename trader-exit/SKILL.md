@@ -83,8 +83,12 @@ A level setup has no opening range to lean on, so it needs a stop you name.
   check is skipped and the plan says so.
 - **Costs.** The plan prints the round trip as a percent of the position: the
   broker fee both ways (0.1425 percent, times your discount, minimum NT$20)
-  plus the day-trade sell tax (0.15 percent by default). Reward:risk here is
-  before costs; trader-risk and trader-budget count the costs.
+  plus the day-trade sell tax: 0.15 percent for a cash day trade dated on or
+  before `day_trade_tax_halved_until` (2027-12-31), else 0.3, and always 0.3
+  with `"day_trade_mode": "margin_daytrade"`. The line names the rate used.
+  Reward:risk here is before costs; trader-risk and trader-budget count the
+  costs. The plan also prints one reminder that day-trade eligibility is not
+  checked.
 - **Flat by.** 13:20 by default (or `flat_by` in the config). Out by then,
   win or lose, no overnight hold. It must be before the 13:30 close; there is
   no early close. An entry at or after the flat-by time is refused.

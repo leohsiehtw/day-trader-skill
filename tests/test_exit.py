@@ -203,6 +203,8 @@ class Cli(unittest.TestCase):
         self.assertIn("Reward:risk   2.0", text)
         self.assertIn("Price limits  180.00 down to 220.00 up (previous close 200.00", text)
         self.assertIn("Costs         about 0.32% of the position round trip", text)
+        self.assertIn("0.15% cash day-trade sell tax (halved through 2027-12-31)", text)
+        self.assertEqual(text.count("Not checked: whether your account may day trade"), 1)
         self.assertIn("Flat by       13:20 Taipei", text)
         self.assertIn("not a guarantee", text)
         self.assertIn("no bracket orders", text)
@@ -304,6 +306,19 @@ class Cli(unittest.TestCase):
         code, _, err = self.plan()
         self.assertEqual(code, 1)
         self.assertIn("at or after the 13:30 close", err)
+        os.remove(os.path.join("trader", "config.json"))
+
+        # margin day trade: 1000 x 205, fees 176 + 176, tax 615 (205,000 x 0.3%) = 967 = 0.47 percent
+        self.write(os.path.join("trader", "config.json"), {"day_trade_mode": "margin_daytrade"})
+        code, text, _ = self.plan("--json")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(text)["round_trip_cost_pct"], 0.47)
+        code, text, _ = self.plan()
+        self.assertIn("0.3% margin/short day-trade sell tax", text)
+        self.write(os.path.join("trader", "config.json"), {"day_trade_mode": "swing"})
+        code, _, err = self.plan()
+        self.assertEqual(code, 1)
+        self.assertIn("day_trade_mode", err)
         os.remove(os.path.join("trader", "config.json"))
 
         code, text, _ = run(exitp, ["plan", "--now", "2026-10-19 09:31"])

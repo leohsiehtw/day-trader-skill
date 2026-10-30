@@ -36,6 +36,27 @@ there is no PDT check. Cash day trading (buying and selling the same stock in
 one day) needs an eligible account and an eligible stock at your broker: this
 tool does not check that, so confirm it yourself.
 
+### Day-trade eligibility (not checked)
+
+As commonly stated by brokers and the news (unverified; confirm with your broker
+or the TWSE): the account has been open at least 3 months, has at least 10
+trades in the past year, and has a signed day-trade consent form; selling first
+and buying back the same day also needs a securities-lending or margin
+contract. The program checks none of this.
+
+The stocks that may be day traded come from the TWSE daily list
+(`get_daily_day_trading_targets` in the TW Stock connector, or twse.com.tw).
+Do not assume a stock is on it.
+
+Marked unverified (check them yourself):
+
+- the minimum broker fee of NT$20 (`min_fee_twd`): broker-specific;
+- the rule that a short sale may not be priced below the previous close: not checked;
+- odd-lot day trading: not eligible per the TWSE day-trading page (the regulator
+  is only evaluating opening it), still confirm with your broker;
+- the +/-10 percent limit rounding direction (snapped inward here) and the tick
+  table: check them against the TWSE rules.
+
 `${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
 It also holds `twmarket.py`, the shared Taiwan market module (clock, holidays,
 ticks, price limits, lots, fees and tax) that trader-entry, trader-exit,
@@ -104,11 +125,15 @@ How the numbers work:
   used, and it says so.
 - **Costs.** Broker fee 0.1425 percent times `fee_discount` (default 0.6, set
   1.0 if you get no discount), at least `min_fee_twd` (20), on each order and
-  rounded up to a whole TWD. The sell leg of a day trade pays
-  `day_trade_sell_tax_pct` (0.15 by default). That halved day-trade rate is a
-  temporary measure that has been extended before: check the Ministry of
-  Finance or TWSE notice and set it to 0.3 if it has lapsed. A plain sell that
-  credits cash uses `sell_tax_pct` (0.3).
+  rounded up to a whole TWD. The sell leg of a day trade pays the tax set by
+  `day_trade_mode`: `"cash_daytrade"` (default, a cash day trade) pays
+  `day_trade_sell_tax_pct` (0.15) while today's date (`--now` / `--today`) is
+  on or before `day_trade_tax_halved_until` (`"2027-12-31"`), then
+  `sell_tax_pct` (0.3) by itself; `"margin_daytrade"` (a margin or short-sale
+  day trade) always pays `sell_tax_pct` (0.3). Any other mode is a config
+  error. The halved rate is a temporary measure: check the Ministry of Finance
+  or TWSE notice and move `day_trade_tax_halved_until` if the end date moves.
+  A plain sell that credits cash uses `sell_tax_pct` (0.3).
 - **Daily loss** counts the full max loss of every entry placed today, win or
   lose, as trader-broker logged it. Three full-size trades use up a NT$15,000
   day.
@@ -118,9 +143,10 @@ How the numbers work:
   holiday schedule). A `no_entries_after` later than 13:30 counts as 13:30,
   and `flat_by` at or after 13:30 is an error. Set both `no_entries_*` to
   null to switch the window off.
-- **Odd lots.** An odd-lot entry passes with a warning: whether it can be
-  sold the same day is the broker's rule, and the sell tax may be the full
-  0.3 percent, which these numbers do not include.
+- **Odd lots.** Odd lots cannot be day traded under current TWSE rules. An
+  odd-lot entry still passes (`allow_odd_lots` is true by default) but with a
+  strong warning: it becomes an overnight position, selling it later pays the
+  normal 0.3 percent sell tax, and the costs shown (day-trade rate) are too low.
 
 Warnings do not block, but say them to the user: a LIVE account, a number
 sent as a number instead of a string, a stop that lives only in the plan and

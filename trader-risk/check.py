@@ -63,12 +63,17 @@ What blocks an entry (on top):
                 (weekend, TWSE holiday, outside 9:00 to 13:30)
 
 Costs. Broker fee 0.1425 percent x fee_discount (minimum min_fee_twd) on each
-order, rounded up to whole TWD; sell tax day_trade_sell_tax_pct on the sell leg
-of a day trade. A plain sell that credits cash uses sell_tax_pct (0.3).
+order, rounded up to whole TWD; the day-trade sell tax on the sell leg. With
+"day_trade_mode": "cash_daytrade" (default) that is day_trade_sell_tax_pct (0.15)
+while today's date (--now / --today) is on or before day_trade_tax_halved_until
+("2027-12-31"), then sell_tax_pct (0.3); "margin_daytrade" always uses
+sell_tax_pct (0.3). A plain sell that credits cash uses sell_tax_pct (0.3).
 
-Not checked: whether your account may sell the same day (cash day trading needs an
-eligible account and eligible stocks), the exchange's disposition or margin-ban lists,
-and odd-lot day-trade rules. Odd-lot entries get a warning.
+Not checked: whether your account may day trade (account age, trade count, the
+signed day-trade consent; sell-first also needs a margin/lending contract), whether
+the stock is on the TWSE daily day-trade list, and the exchange's disposition or
+margin-ban lists. Odd lots cannot be day traded under current TWSE rules: an
+odd-lot entry gets a warning that it becomes an overnight position.
 
 Exit code 0 when every order passes, 1 when any order is blocked.
 The verdicts go to trader/state/risk.json with a fingerprint of each order,
@@ -100,7 +105,8 @@ DEFAULTS = {
     "max_orders_per_day": 10, "min_reward_risk": 1.0, "require_stop": True,
     "no_entries_before": "09:15", "no_entries_after": "13:00", "flat_by": "13:20",
     "allow_odd_lots": True, "fee_discount": 0.6, "min_fee_twd": 20, "day_trade_sell_tax_pct": 0.15,
-    "sell_tax_pct": 0.3,
+    "sell_tax_pct": 0.3, "day_trade_mode": "cash_daytrade",
+    "day_trade_tax_halved_until": tw.DAY_TRADE_TAX_HALVED_UNTIL,
     "paper": True, "blocked": [], "allow_options": False, "allow_margin": False, "allow_short": False,
 }
 ALPACA_FIELDS = ("symbol", "side", "qty", "notional", "type", "time_in_force", "limit_price",
@@ -118,6 +124,10 @@ CENT = 0.005
 FRESH_MINUTES = 15
 REF_WORDS = {"plan": "the plan's entry", "price": "the latest price", "limit": "the limit price",
              "stop price": "the stop price", "stale price": "an old price"}
+
+ODD_LOT_WARNING = ("odd lot of %s shares: odd lots cannot be day traded under current TWSE rules, so this "
+                   "entry becomes an OVERNIGHT position; selling it later pays the normal 0.3 percent sell "
+                   "tax, so the costs here (day-trade rate) are too low. Use whole board lots to day trade")
 
 CALENDAR_YEARS = tw.CALENDAR_YEARS
 OPEN = tw.OPEN
@@ -330,6 +340,10 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None, now=
     now_utc = now or parse_now(None)
     now_tp = to_taipei(now_utc)
     today = today or now_tp.date().isoformat()
+    c["trade_date"] = today
+    problem = tw.cost_problem(c)
+    if problem:
+        raise RiskError(problem)
     flat = hhmm(c.get("flat_by"), "flat_by")
     if flat is not None and flat >= CLOSE:
         raise RiskError("flat_by %s is at or after the %s close: pick a time before the close"
@@ -502,9 +516,7 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None, now=
             later.append("price: no price for %s to size a %s-share order; add it to "
                          "trader/prices.json" % (sym, _n(q)))
         if kind == "entry" and q and 0 < q < tw.BOARD_LOT and not problem:
-            warns.append("odd lot of %s shares: check that your broker lets you sell an odd-lot buy the same day; "
-                         "if the sell tax is the full 0.3 percent instead of 0.15, the costs here are too low"
-                         % _n(q))
+            warns.append(ODD_LOT_WARNING % _n(q))
 
         # blocked list and size
         if sym in blocked:
