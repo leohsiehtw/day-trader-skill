@@ -382,7 +382,7 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None, now=
         bracket = oc == "bracket" or (not oc and legs)
         value = None
         q = _f(qty)
-        pc = prev_closes.get(sym)
+        pc = prev_closes.get(sym) or _f(plan.get("prev_close"))
 
         # format
         if not sym:

@@ -106,7 +106,8 @@ class ThePlan(unittest.TestCase):
             "order_class": "bracket", "take_profit_limit_price": "211.00", "stop_loss_stop_price": "202.00",
             "currency": "TWD",
             "plan": {"entry": 205.0, "stop": 202.0, "target": 211.0, "risk_per_share": 3.0, "max_loss": 3652.0,
-                     "costs_at_stop": 652, "reward_risk_net": 1.46, "setup": "orb", "entry_time": "9:30 AM",
+                     "costs_at_stop": 652, "reward_risk_net": 1.46, "prev_close": 200.0,
+                     "limit_down": 180.0, "limit_up": 220.0, "setup": "orb", "entry_time": "9:30 AM",
                      "flat_by": "13:20"}})
         self.assertIn("bound by your NT$5,000 max loss", why)
         self.assertIn("NT$3,652", why)

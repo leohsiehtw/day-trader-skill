@@ -139,7 +139,7 @@ class TheSession(unittest.TestCase):
             self.assertIn("max loss NT$3,652 (1,000 x 3.00 + NT$652 fees and tax) (limit NT$5,000), "
                           "reward:risk 1.46 after costs (2.00 before) (min 1)", text)
             self.assertIn("the TWSE has no bracket orders", text)
-            self.assertIn("no previous close for 2317.TW: the +/-10% limit check was skipped", text)
+            self.assertNotIn("no previous close", text)
             self.assertIn("1 passed, 0 blocked at 2026-10-19 09:30 Taipei", text)
             self.assertIn("not financial advice", text)
             self.assertNotIn("$ ", text.replace("NT$", ""))
@@ -192,9 +192,17 @@ class LotsTicksAndLimits(unittest.TestCase):
         self.assertEqual(verdicts(self.one(o2317(take_profit_limit_price="220.00"))), ["PASS"])
 
     def test_without_a_previous_close_the_limit_check_is_skipped_and_says_so(self):
-        res = check.check([o2317(take_profit_limit_price="225.00")], cfg(), now=at(NOW))
+        o = o2317(take_profit_limit_price="225.00")
+        o["plan"].pop("prev_close")
+        res = check.check([o], cfg(), now=at(NOW))
         self.assertEqual(verdicts(res), ["PASS"])
         self.assertIn("no previous close for 2317.TW: the +/-10% limit check was skipped", warnings(res))
+
+    def test_the_previous_close_in_the_order_plan_is_enough_for_the_limit_check(self):
+        res = check.check([o2317(take_profit_limit_price="225.00")], cfg(), now=at(NOW))
+        self.assertEqual(verdicts(res), ["BLOCK"])
+        self.assertIn("limit: take_profit_limit_price 225.00 is outside today's price limits 180.00 to 220.00 "
+                      "(previous close 200.00)", reasons(res))
 
     def test_the_plan_stop_is_range_checked_when_it_is_not_a_bracket_leg(self):
         o = o2317()

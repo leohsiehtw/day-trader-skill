@@ -500,6 +500,7 @@ def bracket_order(s):
         "plan": {"entry": s["entry"], "stop": s["stop"], "target": s["target"],
                  "risk_per_share": s["risk_per_share"], "max_loss": s["max_loss"],
                  "costs_at_stop": s["costs_at_stop"], "reward_risk_net": s["reward_risk_net"],
+                 "prev_close": s["prev_close"], "limit_down": s["limit_down"], "limit_up": s["limit_up"],
                  "setup": s["setup"], "entry_time": s["entry_time"], "flat_by": s["flat_by"]},
     })
     return o
