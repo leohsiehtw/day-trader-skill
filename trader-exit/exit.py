@@ -43,7 +43,8 @@ enforces it, after costs. The plan shows the round-trip cost as a percent of the
 position (broker fee both ways plus the day-trade sell tax). The tax follows
 "day_trade_mode" in the config: "cash_daytrade" (default) is 0.15 percent through
 day_trade_tax_halved_until ("2027-12-31", compared with the plan's date) and 0.3
-after; "margin_daytrade" is 0.3. Day-trade eligibility (your account, the stock on
+after; "margin_daytrade" is 0.3. The percent is for whole board lots: an odd lot
+cannot be day traded, so it pays the normal 0.3 percent sell tax. Day-trade eligibility (your account, the stock on
 the TWSE daily day-trade list) is not checked; the plan says so.
 
 A stop is a plan, not a guarantee: a gap or a fast market can fill past it, and
@@ -651,7 +652,8 @@ def describe(plan):
         out.append("  Price limits  %s down to %s up (previous close %s, +/-10%%)" % (
             px(plan["limit_down"]), px(plan["limit_up"]), px(plan["prev_close"])))
     if plan.get("round_trip_cost_pct") is not None:
-        out.append("  Costs         about %s%% of the position round trip (broker fee both ways plus the %s)"
+        out.append("  Costs         about %s%% of the position round trip (broker fee both ways plus the %s;"
+                   " board lots, an odd lot pays the normal sell tax)"
                    % (num(D(plan["round_trip_cost_pct"]).quantize(CENT)),
                       plan.get("day_trade_tax") or "day-trade sell tax"))
     out.append("  Flat by       %s Taipei, win or lose: no overnight hold" % plan["flat_by"])

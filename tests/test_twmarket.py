@@ -187,6 +187,54 @@ class Symbols(unittest.TestCase):
 
 
 
+class OddLotCosts(unittest.TestCase):
+    # An odd lot (1 to 999 shares) cannot be day traded, so its sell leg pays the normal 0.3% tax.
+    # Expected values worked out on their own with Decimal (see _loss below).
+    D = {"trade_date": "2026-10-19"}
+
+    @staticmethod
+    def _loss(q, entry, stop, rate):
+        ceil = lambda x: int(x.to_integral_value(rounding="ROUND_CEILING"))
+        fee = lambda n: max(20, ceil(n * Decimal("0.001425") * Decimal("0.6")))
+        e, s = Decimal(str(entry)), Decimal(str(stop))
+        return ceil(q * abs(e - s)) + fee(q * e) + fee(q * s) + ceil(q * s * Decimal(rate) / 100)
+
+    def test_odd_lot_pays_the_normal_sell_tax(self):
+        self.assertTrue(tw.is_odd_lot(999))
+        self.assertFalse(tw.is_odd_lot(1000))
+        self.assertFalse(tw.is_odd_lot(0))
+        # 500 x 202 = 101,000 x 0.3% = 303; fees 88 + 87; 1,500 at the stop
+        self.assertEqual(tw.trade_costs(500, 205, 202, self.D),
+                         {"buy_fee": 88, "sell_fee": 87, "tax": 303, "total": 478})
+        self.assertEqual(tw.loss_at_stop(500, 205, 202, self.D), 1978)
+        self.assertEqual(tw.loss_at_stop(500, 205, 202, self.D), self._loss(500, 205, 202, "0.3"))
+        self.assertEqual(tw.loss_at_stop(999, 205, 202, self.D), self._loss(999, 205, 202, "0.3"))
+        self.assertEqual(tw.loss_at_stop(1000, 205, 202, self.D), self._loss(1000, 205, 202, "0.15"))
+        # margin mode and the date do not matter for an odd lot
+        self.assertEqual(tw.loss_at_stop(500, 205, 202, {"trade_date": "2028-01-03"}), 1978)
+        # 500 x 6.00 = 3,000 less fees 88 + 91 and tax 317 (105,500 x 0.3% = 316.5 rounded up)
+        self.assertEqual(tw.net_reward(500, 205, 211, self.D), 2504)
+        # 500 x 205: fees 88 + 88, tax 308 (307.5 rounded up) = 484 on 102,500
+        self.assertAlmostEqual(tw.round_trip_cost_pct(205, self.D, qty=500), 484 / 102500 * 100, places=6)
+        self.assertIn("0.3% normal sell tax", tw.cost_tax_words(500, self.D))
+        self.assertIn("halved through", tw.cost_tax_words(1000, self.D))
+
+    def test_max_qty_for_loss_across_the_board_lot_boundary(self):
+        # 999 shares lose 3,952 (0.3% tax) but 1,000 lose only 3,652 (0.15%): the loss drops at 1,000
+        self.assertEqual(tw.loss_at_stop(999, 205, 202, self.D), 3952)
+        self.assertEqual(tw.max_qty_for_loss(3700, 205, 202, self.D), 1013)
+        self.assertEqual(tw.max_qty_for_loss(3651, 205, 202, self.D), 923)
+
+    def test_max_qty_for_loss_matches_brute_force(self):
+        for entry, stop in ((205, 202), (205, 190), (50.5, 49.8), (980, 960)):
+            risk = abs(Decimal(str(entry)) - Decimal(str(stop)))
+            top = 3000
+            losses = [0] + [tw.loss_at_stop(q, entry, stop, self.D) for q in range(1, top + 1)]
+            for cap in range(0, int(risk * 2500), max(1, int(risk * 2500) // 120)):
+                want = max(q for q in range(top + 1) if losses[q] <= cap)
+                self.assertEqual(tw.max_qty_for_loss(cap, entry, stop, self.D), want, (entry, stop, cap))
+
+
 class DayTradeTax(unittest.TestCase):
     # Expected values worked out on their own with Decimal: tax = ceil(sell notional x rate / 100),
     # fee = ceil(notional x 0.001425 x 0.6), minimum 20.

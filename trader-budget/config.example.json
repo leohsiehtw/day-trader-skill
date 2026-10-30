@@ -20,7 +20,7 @@
   "day_trade_sell_tax_pct": 0.15,
   "day_trade_tax_halved_until": "2027-12-31",
   "sell_tax_pct": 0.3,
-  "day_trade_sell_tax_note": "day_trade_mode is cash_daytrade (a cash day trade) or margin_daytrade (a margin or short-sale day trade). A cash day trade pays day_trade_sell_tax_pct (0.15) on trades dated on or before day_trade_tax_halved_until, then sell_tax_pct (0.3) by itself; a margin day trade always pays sell_tax_pct (0.3). The halved rate is a temporary cut: check the Ministry of Finance / TWSE notice and change day_trade_tax_halved_until if the end date moves. Odd lots cannot be day traded under current TWSE rules. fee_discount may be a monthly rebate at your broker; 1.0 is the worst case (no discount). min_fee_twd 20 is common but broker-specific (unverified).",
+  "day_trade_sell_tax_note": "day_trade_mode is cash_daytrade (a cash day trade) or margin_daytrade (a margin or short-sale day trade). A cash day trade pays day_trade_sell_tax_pct (0.15) on trades dated on or before day_trade_tax_halved_until, then sell_tax_pct (0.3) by itself; a margin day trade always pays sell_tax_pct (0.3). The halved rate is a temporary cut: check the Ministry of Finance / TWSE notice and change day_trade_tax_halved_until if the end date moves. Odd lots cannot be day traded under current TWSE rules, so an odd-lot order is costed as a normal sale at sell_tax_pct (0.3). fee_discount may be a monthly rebate at your broker; 1.0 is the worst case (no discount). min_fee_twd 20 is common but broker-specific (unverified).",
   "broker": "alpaca",
   "paper": true,
   "blocked": [],

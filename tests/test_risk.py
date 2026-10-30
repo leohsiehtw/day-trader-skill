@@ -110,10 +110,11 @@ class TheSession(unittest.TestCase):
                           "at the stop, over your NT$5,000 max loss per trade"])
 
     def test_an_odd_lot_passes_with_a_warning(self):
-        # 500 shares: 1,500 at the stop + 88 + 87 fees + 152 tax = 1,827
+        # 500 shares, no day trade for an odd lot: 1,500 at the stop + 88 + 87 fees + 303 tax
+        # (101,000 x 0.3% normal sell tax) = 1,978
         res = check.check([o2317(qty="500")], cfg(), now=at(NOW), prev_closes=PREV)
         r = res["results"][0]
-        self.assertEqual((r["verdict"], r["max_loss"], r["lot"]), ("PASS", 1827.0, "odd lot of 500 shares"))
+        self.assertEqual((r["verdict"], r["max_loss"], r["lot"]), ("PASS", 1978.0, "odd lot of 500 shares"))
         self.assertIn("odd lot of 500 shares", warnings(res))
         self.assertIn("cannot be day traded", warnings(res))
         self.assertIn("OVERNIGHT position", warnings(res))

@@ -4,10 +4,13 @@ English | [繁體中文](README.zh-TW.md)
 
 11 Claude skills for day trading: scan thousands of charts, track breaking news, time every entry and exit, and replay every outcome before you risk a dollar.
 
-**This is a Taiwan (TWSE / TPEx) fork** of
-[Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill).
-The Taiwan edition lives on the `tw-equities` branch. It stays under the MIT
-license with the original author's copyright and credit (see `LICENSE`).
+**This is a Taiwan (TWSE / TPEx) fork**,
+[leohsiehtw/day-trader-skill](https://github.com/leohsiehtw/day-trader-skill),
+of the original
+[Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill)
+by Jake Schincariol. The Taiwan edition lives on the `tw-equities` branch. It
+stays under the MIT license with the original author's copyright and credit
+(see `LICENSE`).
 
 Free, MIT, no signup, no API key. The tools are plain Python that read free
 public data: Yahoo Finance charts, the exchanges' own symbol lists (the TWSE
@@ -58,7 +61,7 @@ OCO orders at your broker, or watch the screen yourself.
 | ordinary sell tax | 0.3 % (`sell_tax_pct`) |
 | brokerage fee | 0.1425 % x `fee_discount` (default 0.6) per side, rounded up to a whole TWD, minimum `min_fee_twd` (20) |
 | board lot | 1,000 shares; an order is whole board lots or one odd lot of 1 to 999 shares, never both |
-| odd lots | cannot be day traded under current TWSE rules: an odd-lot entry gets a strong warning (it becomes an overnight position and the later sell pays 0.3 %) |
+| odd lots | cannot be day traded under current TWSE rules: an odd-lot entry gets a strong warning (it becomes an overnight position), and its costs and max loss use the normal 0.3 % sell tax (`sell_tax_pct`), not the day-trade rate |
 | pattern day trader | Taiwan has no PDT rule, so there is no PDT check |
 | symbols | 4-digit common stocks only; 00xx ETFs, preferred shares, warrants and DRs are refused |
 
@@ -106,7 +109,7 @@ Unverified, check them yourself:
 Paste this into Claude:
 
 ```
-https://github.com/Jakeschincariol/day-trader-skill
+https://github.com/leohsiehtw/day-trader-skill
 
 install skill
 ```
@@ -114,12 +117,14 @@ install skill
 Or as a plugin, in Claude Code:
 
 ```
-/plugin marketplace add Jakeschincariol/day-trader-skill
+/plugin marketplace add leohsiehtw/day-trader-skill
 /plugin install day-trader-skill@day-trader-skill
 ```
 
-Those two install the original US pack from the upstream repo. For the Taiwan
-edition, copy the folders from this fork's `tw-equities` branch:
+Both install from this fork (the marketplace and the plugin are both named
+`day-trader-skill`). The original US pack stays at
+[Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill).
+Or copy the folders from this fork's `tw-equities` branch by hand:
 
 ```bash
 git clone -b tw-equities https://github.com/leohsiehtw/day-trader-skill.git

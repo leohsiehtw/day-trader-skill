@@ -70,7 +70,7 @@ If `trader/config.json` does not exist, copy `config.example.json` into
   **min_reward_risk** (1.0, counted after costs), **require_stop** (true),
   **no_entries_before** / **no_entries_after** ("09:15" / "13:00") and **flat_by** ("13:20"), all Taipei time.
 - **allow_odd_lots** (true): whether a buy under 1,000 shares is allowed. An order is whole board lots
-  or ONE odd lot, never both.
+  or ONE odd lot, never both. An odd lot cannot be day traded, so its costs use **sell_tax_pct** (0.3).
 - The cost rates: **fee_discount** (0.6 of the 0.1425% broker fee; it may be a monthly rebate at your broker,
   and 1.0 is the worst case), **min_fee_twd** (20, broker-specific, unverified), **day_trade_sell_tax_pct**
   (0.15) and **sell_tax_pct** (0.3).
@@ -93,7 +93,7 @@ is true):
 
 | limit | shares |
 | --- | --- |
-| max loss | the most shares whose loss at the stop stays inside `max_loss_per_trade_twd`: price loss plus broker fees on both legs plus the day-trade sell tax |
+| max loss | the most shares whose loss at the stop stays inside `max_loss_per_trade_twd`: price loss plus broker fees on both legs plus the day-trade sell tax (an odd lot: the normal `sell_tax_pct`, 0.3) |
 | position cap | budget x `max_position_pct` / entry |
 | max order | `max_order_twd` / entry |
 | cash | (budget minus the cash buffer) / entry, fee included, never more than the cash in `trader/portfolio.json` |
@@ -114,7 +114,8 @@ limit check was skipped. Say the reason to the user in one line.
 
 An odd-lot order warns strongly: odd lots cannot be day traded under current
 TWSE rules, so the buy becomes an overnight position, selling it later pays the
-normal 0.3 percent sell tax, and the costs shown (day-trade rate) are too low.
+normal 0.3 percent sell tax, and the costs shown already use that 0.3 percent
+rate (not the day-trade rate), so the max loss limit sizes an odd lot smaller.
 
 The report ends with one reminder line: day-trade eligibility (your account,
 and the stock on the TWSE daily day-trade list) is not checked. See trader-risk.
@@ -160,10 +161,11 @@ NT$3,652. If the target fills the net gain is NT$5,326, so net reward:risk is
 
 `why` and `plan` are notes for trader-risk and trader-broker, and `currency`
 is a label. They are never sent to a broker. With a stop at 190.00 and a
-target at 220.00 instead, 319 shares fit the max loss, so the order is one
-odd lot of 319 shares (with a warning) if `min_reward_risk` is switched off,
-and with `allow_odd_lots` false it is refused. A quote of 207.30
-sizes to 839 shares at 5.30 a share, and net reward:risk falls to 0.51: refused,
+target at 220.00 instead, 314 shares fit the max loss (NT$4,997 with the 0.3
+percent normal sell tax), so the order is one odd lot of 314 shares (with a
+warning) if `min_reward_risk` is switched off, and with `allow_odd_lots` false
+it is refused. A quote of 207.30 sizes to 799 shares at 5.30 a share (an odd
+lot, so the 0.3 percent tax), and net reward:risk falls to 0.43: refused,
 because the move it was waiting for has mostly happened.
 
 ## Weights mode (kept from v1)

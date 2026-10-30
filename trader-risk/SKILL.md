@@ -146,7 +146,8 @@ How the numbers work:
 - **Odd lots.** Odd lots cannot be day traded under current TWSE rules. An
   odd-lot entry still passes (`allow_odd_lots` is true by default) but with a
   strong warning: it becomes an overnight position, selling it later pays the
-  normal 0.3 percent sell tax, and the costs shown (day-trade rate) are too low.
+  normal 0.3 percent sell tax, and the costs and max loss shown use that 0.3
+  percent rate (`sell_tax_pct`), not the day-trade rate.
 
 Warnings do not block, but say them to the user: a LIVE account, a number
 sent as a number instead of a string, a stop that lives only in the plan and
@@ -200,7 +201,8 @@ BLOCK #1 buy 2317.TW 2,000 shares (2 board lots), entry
 ```
 
 The fees are 351 on the buy, 346 on the sell, plus 606 of sell tax. A 500-share
-odd lot passes with an odd-lot warning (NT$1,827 at the stop). A quote of
+odd lot passes with an odd-lot warning (NT$1,978 at the stop: its 101,000 sell
+pays the 0.3 percent normal tax, 303, since an odd lot cannot be day traded). A quote of
 207.30 at 9:40 raises the entry the risk is measured from and blocks the
 1,000 shares: 1,000 x 5.30 + NT$654 = NT$5,954. A target above limit-up
 (220.00 on a previous close of 200.00) is blocked. At 9:10 the window blocks

@@ -177,13 +177,17 @@ class PlanRules(unittest.TestCase):
             self.assertFalse(os.path.exists(out))
 
     def test_a_wide_stop_gives_one_odd_lot(self):
-        # stop 190: 319 shares keep the loss at NT$4,984 (worked out separately), so one odd lot, no board lot
+        # stop 190: 314 shares keep the loss at NT$4,997 with the 0.3% normal sell tax an odd lot pays
+        # (worked out separately), so one odd lot, no board lot
         s = size.size_trade(plan(stop=190.0, target=220.0), cfg(min_reward_risk=0), today=TODAY)
-        self.assertEqual((s["qty"], s["bound_by"], s["max_loss"]), (319, "max loss", 4984.0))
-        self.assertEqual(s["limits"][0]["raw"], 319)
+        self.assertEqual((s["qty"], s["bound_by"], s["max_loss"]), (314, "max loss", 4997.0))
+        self.assertEqual(s["limits"][0]["raw"], 314)
+        self.assertEqual(s["costs"]["tax"], 179)                    # 314 x 190 = 59,660 x 0.3% = 178.98
         self.assertTrue(any("odd lot" in w for w in s["warnings"]))
-        self.assertEqual(size.bracket_order(s)["qty"], "319")
-        self.assertIn("odd lot of 319 shares", size.plan_report(s, size.bracket_order(s)))
+        self.assertEqual(size.bracket_order(s)["qty"], "314")
+        report = size.plan_report(s, size.bracket_order(s))
+        self.assertIn("odd lot of 314 shares", report)
+        self.assertIn("Costs use the 0.3% normal sell tax (odd lot", report)
         odd = [w for w in s["warnings"] if "odd lot" in w][0]
         self.assertIn("cannot be day traded", odd)
         self.assertIn("OVERNIGHT position", odd)
@@ -230,13 +234,14 @@ class PlanRules(unittest.TestCase):
         self.assertEqual(s["qty"], 1000)
 
     def test_a_fresh_higher_price_means_a_bigger_risk(self):
-        # 207.30: risk 5.30; 839 shares keep the loss at NT$4,996; net reward 2,537 -> net 0.51 (worked out separately)
+        # 207.30: risk 5.30; an odd lot pays the 0.3% normal sell tax, so 799 shares keep the loss at NT$5,000;
+        # net reward 2,163 -> net 0.43 (worked out separately)
         s = size.size_trade(plan(), cfg(min_reward_risk=0), price=207.3, today=TODAY)
         self.assertEqual((s["entry"], s["entry_from"], s["risk_per_share"]), (207.3, "price", 5.3))
-        self.assertEqual((s["qty"], s["max_loss"], s["reward_risk"], s["reward_risk_net"]), (839, 4996.0, 0.7, 0.51))
+        self.assertEqual((s["qty"], s["max_loss"], s["reward_risk"], s["reward_risk_net"]), (799, 5000.0, 0.7, 0.43))
         self.assertIsNone(s["refusal"])
         s = size.size_trade(plan(), cfg(), price=207.3, today=TODAY)
-        self.assertIn("net reward:risk 0.51 (gross 0.70", s["refusal"])
+        self.assertIn("net reward:risk 0.43 (gross 0.70", s["refusal"])
         self.assertIn("is under your minimum 1", s["refusal"])
         self.assertIsNone(size.bracket_order(s))
         lower = size.size_trade(plan(), cfg(), price=203.0, today=TODAY)
@@ -258,7 +263,7 @@ class PlanRules(unittest.TestCase):
                 json.dump(cfg(min_reward_risk=0), fh)
             base = ["--plan", PLAN, "--config", c, "--portfolio", os.path.join(d, "none"), "--prices", pp, "--json"]
             out = json.loads(run(base + ["--now", "2026-10-19 09:40"])[1])        # 12 minutes after the quote
-            self.assertEqual(out["sizing"]["qty"], 839)
+            self.assertEqual(out["sizing"]["qty"], 799)
             self.assertIn("above the plan's entry", out["notes"][0])
             self.assertIn("Taipei", out["notes"][0])
             out = json.loads(run(base + ["--now", "2026-10-19 11:30"])[1])

@@ -21,7 +21,9 @@ ONE odd lot of 1 to 999 shares (when "allow_odd_lots" is true), never both.
     shares = the smallest of these four, each rounded down to a valid lot size
       max loss       the most shares whose loss at the stop stays inside
                      max_loss_per_trade_twd; the loss counts the broker fees
-                     and the day-trade sell tax on both legs
+                     and the day-trade sell tax on both legs (an odd
+                     lot cannot be day traded, so it uses the normal
+                     sell_tax_pct, 0.3)
       position cap   budget x max_position_pct / entry
       max order      max_order_twd / entry
       cash           (budget minus the cash buffer) / entry, fee included
@@ -444,7 +446,8 @@ def size_trade(plan, cfg, budget=None, limit=None, price=None, cash=None, today=
     if 0 < qty < tw.BOARD_LOT:
         warnings.append("odd lot of %d shares: odd lots cannot be day traded under current TWSE rules, so this "
                         "entry becomes an OVERNIGHT position; selling it later pays the normal 0.3 percent sell "
-                        "tax, so the costs here (day-trade rate) are too low. Use whole board lots to day trade"
+                        "tax, and the costs here use that rate, not the day-trade rate. Use whole board lots "
+                        "to day trade"
                         % qty)
     refusal = None
     if qty == 0:
@@ -481,7 +484,7 @@ def size_trade(plan, cfg, budget=None, limit=None, price=None, cash=None, today=
         "cost": cost, "costs": costs, "costs_at_stop": costs["total"], "max_loss": float(loss),
         "reward_net": reward_net, "currency": "TWD", "flat_by": plan.get("flat_by") or c.get("flat_by"),
         "order_type": "limit" if limit is not None else "market", "refusal": refusal,
-        "day_trade_tax": tw.day_trade_tax_words(c),
+        "day_trade_tax": tw.cost_tax_words(qty, c),
     }
 
 

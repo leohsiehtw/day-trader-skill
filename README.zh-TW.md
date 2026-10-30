@@ -5,7 +5,8 @@
 原專案簡介:"11 Claude skills for day trading: scan thousands of charts, track breaking news, time every entry and exit, and replay every outcome before you risk a dollar."
 (11 個當沖用的 Claude skill:掃描上千張線圖、追蹤即時新聞、抓準每次進出場時機,下單前先重播每一種可能的結果。)
 
-**這是 [Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill)
+**這是 [leohsiehtw/day-trader-skill](https://github.com/leohsiehtw/day-trader-skill),
+Jake Schincariol 原作 [Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill)
 的台股(上市 TWSE、上櫃 TPEx)fork。** 台股版放在 `tw-equities` 分支,沿用 MIT 授權,
 保留原作者的著作權聲明與署名(見 `LICENSE`)。
 
@@ -47,7 +48,7 @@ K 棒把當天剩下的走勢重播 10,000 次,再加上過去每一次出現同
 | 一般賣出證交稅 | 0.3%(`sell_tax_pct`) |
 | 手續費 | 每邊 0.1425% x `fee_discount`(預設 0.6),逐筆進位到整數元,最低 `min_fee_twd`(20 元) |
 | 一張 | 1,000 股;委託是整張,或單一筆 1 到 999 股的零股,不能混合 |
-| 零股 | 依證交所現行規定不能當沖:零股進場會有強烈警告(會變成留倉部位,之後賣出適用 0.3%) |
+| 零股 | 依證交所現行規定不能當沖:零股進場會有強烈警告(會變成留倉部位),成本與停損最大虧損改用一般賣出證交稅 0.3%(`sell_tax_pct`),不用當沖稅率 |
 | 型態當沖交易者(PDT) | 台灣沒有 PDT 規定,所以不做 PDT 檢查 |
 | 標的 | 只處理四碼普通股;00 開頭的 ETF、特別股、權證、DR 都會被拒絕 |
 
@@ -84,7 +85,7 @@ K 棒把當天剩下的走勢重播 10,000 次,再加上過去每一次出現同
 把這段貼給 Claude:
 
 ```
-https://github.com/Jakeschincariol/day-trader-skill
+https://github.com/leohsiehtw/day-trader-skill
 
 install skill
 ```
@@ -92,11 +93,13 @@ install skill
 或在 Claude Code 裡當成 plugin 安裝:
 
 ```
-/plugin marketplace add Jakeschincariol/day-trader-skill
+/plugin marketplace add leohsiehtw/day-trader-skill
 /plugin install day-trader-skill@day-trader-skill
 ```
 
-上面兩種裝的是上游 repo 的原版(美股)。要用台股版,請從這個 fork 的 `tw-equities` 分支複製資料夾:
+上面兩種都從這個 fork 安裝(marketplace 與 plugin 都叫 `day-trader-skill`)。原版(美股)仍在
+[Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill)。
+也可以從這個 fork 的 `tw-equities` 分支手動複製資料夾:
 
 ```bash
 git clone -b tw-equities https://github.com/leohsiehtw/day-trader-skill.git

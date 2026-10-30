@@ -13,6 +13,9 @@ Day-trade sell tax. "day_trade_mode" picks the kind of day trade:
   margin_daytrade  a margin / short-sale day trade: sell_tax_pct (0.3), never halved
 The trade date is the cost config's "trade_date" (the --now / --today date the tools pass in), else
 today in Taipei.
+
+Odd lots (1 to 999 shares) cannot be day traded on the TWSE, so an odd-lot entry is costed as an
+overnight position sold later: the sell leg pays the normal sell_tax_pct (0.3), not the day-trade rate.
 """
 
 import datetime
@@ -317,6 +320,20 @@ ELIGIBILITY_REMINDER = ("Not checked: whether your account may day trade (accoun
                         "is on the TWSE daily day-trade list. Confirm with your broker.")
 
 
+def is_odd_lot(qty):
+    """True for an odd-lot order of 1 to 999 shares (it cannot be day traded)."""
+    return 0 < D(qty) < BOARD_LOT
+
+
+def cost_tax_words(qty, cfg=None, trade_date=None):
+    """The sell tax the costs of a qty-share order use: the day-trade tax for board lots, the normal
+    sell tax for an odd lot (it cannot be day traded, so it is sold later as an overnight position)."""
+    if is_odd_lot(qty):
+        pct = format(D(cost_params(cfg)["sell_tax_pct"]).normalize(), "f")
+        return "%s%% normal sell tax (odd lot: no day trade, sold later as an overnight position)" % pct
+    return day_trade_tax_words(cfg, trade_date)
+
+
 def _ceil(x):
     return int(x.to_integral_value(rounding=ROUND_CEILING))
 
@@ -345,13 +362,15 @@ def sell_tax(notional, cfg=None, rate_key="day_trade_sell_tax_pct", trade_date=N
 
 
 def trade_costs(qty, open_px, close_px, cfg=None, side="buy"):
-    """Fees and tax of opening and closing the same quantity on one day.
-    side "buy": buy at open_px, sell at close_px. side "sell": sell at open_px, buy at close_px."""
+    """Fees and tax of opening and closing the same quantity.
+    side "buy": buy at open_px, sell at close_px. side "sell": sell at open_px, buy at close_px.
+    Board lots pay the day-trade sell tax; an odd lot (1 to 999 shares) cannot be day traded, so it
+    pays the normal sell_tax_pct."""
     q = D(qty)
     buy_px, sell_px = (D(open_px), D(close_px)) if side == "buy" else (D(close_px), D(open_px))
     buy_n, sell_n = q * buy_px, q * sell_px
     bf, sf = broker_fee(buy_n, cfg), broker_fee(sell_n, cfg)
-    tax = sell_tax(sell_n, cfg)
+    tax = sell_tax(sell_n, cfg, "sell_tax_pct") if is_odd_lot(q) else sell_tax(sell_n, cfg)
     return {"buy_fee": bf, "sell_fee": sf, "tax": tax, "total": bf + sf + tax}
 
 
@@ -380,12 +399,20 @@ def _max_q(ok, hi):
 
 
 def max_qty_for_loss(cap, entry, stop, cfg=None, side="buy"):
-    """Most shares whose loss at the stop (costs included) stays within cap."""
+    """Most shares whose loss at the stop (costs included) stays within cap.
+    The loss rises with qty within 1..999 (normal sell tax) and within 1000.. (day-trade tax), but
+    can drop at 1000 when the day-trade rate is lower, so the two ranges are searched apart."""
     risk = abs(D(entry) - D(stop))
     if risk <= 0:
         return 0
     hi = int(D(cap) / risk) + 1
-    return _max_q(lambda q: loss_at_stop(q, entry, stop, cfg, side) <= D(cap), hi)
+
+    def ok(q):
+        return loss_at_stop(q, entry, stop, cfg, side) <= D(cap)
+
+    if hi >= BOARD_LOT and ok(BOARD_LOT):
+        return BOARD_LOT + _max_q(lambda k: ok(BOARD_LOT + k), hi - BOARD_LOT)
+    return _max_q(ok, min(hi, BOARD_LOT - 1))
 
 
 def max_qty_for_cash(cash, price, cfg=None):
@@ -397,15 +424,17 @@ def max_qty_for_cash(cash, price, cfg=None):
     return _max_q(lambda q: q * p + broker_fee(q * p, cfg) <= D(cash), hi)
 
 
-def round_trip_cost_pct(price, cfg=None, trade_date=None):
-    """Costs of buying and selling at the same price, in percent of one side's value."""
+def round_trip_cost_pct(price, cfg=None, trade_date=None, qty=BOARD_LOT):
+    """Costs of buying and selling qty shares (default one board lot) at the same price, in percent
+    of one side's value. An odd-lot qty uses the normal sell tax (see trade_costs)."""
     p = D(price)
     if p <= 0:
         return 0.0
     if trade_date is not None:
         cfg = dict(cfg or {}, trade_date=trade_date)
-    # a large notional makes the minimum fee irrelevant; use 100 board lots' worth per share count
-    q = 1000
+    q = int(qty)
+    if q <= 0:
+        return 0.0
     c = trade_costs(q, p, p, cfg)
     return float(Decimal(c["total"]) / (p * q) * 100)
 

@@ -68,12 +68,15 @@ order, rounded up to whole TWD; the day-trade sell tax on the sell leg. With
 while today's date (--now / --today) is on or before day_trade_tax_halved_until
 ("2027-12-31"), then sell_tax_pct (0.3); "margin_daytrade" always uses
 sell_tax_pct (0.3). A plain sell that credits cash uses sell_tax_pct (0.3).
+An odd lot (1 to 999 shares) cannot be day traded, so its costs use sell_tax_pct
+(0.3), the tax of a normal sale after an overnight hold.
 
 Not checked: whether your account may day trade (account age, trade count, the
 signed day-trade consent; sell-first also needs a margin/lending contract), whether
 the stock is on the TWSE daily day-trade list, and the exchange's disposition or
 margin-ban lists. Odd lots cannot be day traded under current TWSE rules: an
-odd-lot entry gets a warning that it becomes an overnight position.
+odd-lot entry gets a warning that it becomes an overnight position, and its costs
+use the normal sell tax.
 
 Exit code 0 when every order passes, 1 when any order is blocked.
 The verdicts go to trader/state/risk.json with a fingerprint of each order,
@@ -127,7 +130,8 @@ REF_WORDS = {"plan": "the plan's entry", "price": "the latest price", "limit": "
 
 ODD_LOT_WARNING = ("odd lot of %s shares: odd lots cannot be day traded under current TWSE rules, so this "
                    "entry becomes an OVERNIGHT position; selling it later pays the normal 0.3 percent sell "
-                   "tax, so the costs here (day-trade rate) are too low. Use whole board lots to day trade")
+                   "tax, and the costs here use that rate, not the day-trade rate. Use whole board lots "
+                   "to day trade")
 
 CALENDAR_YEARS = tw.CALENDAR_YEARS
 OPEN = tw.OPEN
